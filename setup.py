@@ -13,7 +13,7 @@ REQUIRED = ["click>=7.0"]
 
 setup(
     name="archives",
-    version="0.1",
+    version="0.2",
     description=("a new way to do python code documentation"),
     long_description=LONG_DESCRIPTION,
     author="Jacobi Petrucciani",
