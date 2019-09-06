@@ -1,0 +1,24 @@
+dist: xenial
+sudo: false
+language: python
+matrix:
+  include:
+  - python: 3.6
+    env: TOXENV=py36
+  - python: 3.7
+    env: TOXENV=py37
+  - python: 3.8-dev
+    env: TOXENV=py38
+install:
+- pip install tox pipenv
+- pipenv install
+script: tox
+deploy:
+  provider: pypi
+  user: jacobi
+  skip_existing: true
+  on:
+    branch: master
+    tags: true
+  password:
+    secure: rkD5+1kP8WJRPtk4b9IUTOskEtVYB3XFpfveZYsN6rkHCf/7trb2B2R5BoUrM0a7MnnQDuV35xx5TESeS/xwB+F/pl44d9uEfDwGOxlnhb1xjGajL/k73cepvw4lzDq4H471UVCBVwD37nUgMI1rDmGajA2rgcTUb/6ZDASwSJ2GbK0E4A4SkgCHS6+frToQESccX9Ay35tYhRDrC8yYhD+hT4Mv3UUTnk4kS5VrmxxIC18eu09qHDDAgtYVkul8oZfxJ7SZBHQ4vGsxWwk9sNDDeDJag9jpBybnpLSLHEa1esnmXFvvUweOjOvYAVD7/yHubtRs0+240M5Qyvgn2AEhdhqMXURgVMMN/y36yXqi8oJDG9nOY4pdB1jnoHLIKzBZtVzLRUuDSMEbCZAEMYKS7KNsbcdGKDXJ5wV4kXn/Ez3Znav65B4Jfxar3ubQEeCe//yzyYEndpviqn4761YCeCJXvPWA4gycsyAsFIuLlL4N2dWBnzNr25rgi7AoUD0c3L3p0hwisVCWPvkYPtDH9oz5AELwRUujuIBEpVJvO7j+C9pqZpl/pGiqwUulpvfMpeqgEZ3Z5Zeg4WX4IOw3dfXSNKQHPOU58XdrAtgQfZKRN/nsHV3x5APfaKDL8CKlZUPAYu9i174GvINAsDbe46G8hmlbQsuYK5dXj+0=

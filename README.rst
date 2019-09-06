@@ -1,5 +1,5 @@
 archives: a new way to do python code documentation
-========================
+===================================================
 
 .. image:: https://travis-ci.org/jpetrucciani/archives.svg?branch=master
     :target: https://travis-ci.org/jpetrucciani/archives
@@ -20,7 +20,7 @@ archives: a new way to do python code documentation
    :alt: Python 3.6+ supported
 
 
-**archives** is a new style of python code documentation, as well as a linter for the documentation itself.
+**archives** is a new style of python code documentation, as well as a linter for the documentation itself. It can help you ensure that your docstrings in your classes and functions stay up to date, and that they adequately explain their purpose, arguments, and return value.
 
 
 .. image:: https://i.kym-cdn.com/entries/icons/original/000/023/967/obiwan.jpg
@@ -30,7 +30,8 @@ archives: a new way to do python code documentation
 Features
 --------
 
-- COMING SOON
+- (coming soon) linter for docstrings
+- (coming soon) documentation generator
 
 Usage
 -----
@@ -46,9 +47,18 @@ Installation
 Testing
 -------
 
-Tests can be run with tox!
+Tests can (almost) be run with tox!
 
 .. code-block:: bash
 
    # run tests
    tox
+
+
+Todo
+----
+- more rules
+- better system for multi-check rules
+- more output formats
+- documentation generator
+- tests

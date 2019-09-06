@@ -1,0 +1,3 @@
+"""
+pytest configuration for archives
+"""

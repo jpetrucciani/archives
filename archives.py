@@ -5,11 +5,12 @@ archives
 import click
 import os
 import re
+from collections import defaultdict
 from enum import Enum
 from functools import lru_cache, partial
 from pathlib import Path
 from typed_ast import ast3
-from typing import Iterator, Iterable, Pattern, Set, Tuple, Union
+from typing import Callable, Iterator, Iterable, List, Pattern, Set, Tuple, Union
 
 
 __version__ = "0.1"
@@ -32,8 +33,10 @@ DEFAULT_INCLUDES = r"\.pyi?$"
 
 OUT = partial(click.secho, bold=True, err=True)
 ERR = partial(click.secho, fg="red", err=True)
+MSG = partial(click.secho, fg="blue", err=True)
 
 
+# templates for archives tags
 CHAR = "@"
 EOL = r"(?:\n|\Z)"
 DESC = re.compile(rf"(?:{CHAR}desc) (.+){EOL}")
@@ -41,7 +44,66 @@ ARG = re.compile(rf"(?:{CHAR}arg) ([a-zA-Z0-9_]+) (.+){EOL}")
 RETURN = re.compile(rf"(?:{CHAR}ret) (.+){EOL}")
 LINK = re.compile(rf"(?:{CHAR}link) ([a-zA-Z0-9_]+) (.+){EOL}")
 
+
 DEFAULT_ARG_IGNORE = ["self", "cls"]
+
+FORMATS = {
+    "flake8": "{path}:{line}:{column}: {code} {text} for '{name}'",
+    "pylint": "{path}:{line}: [{code}] {text} for '{name}'",
+}
+
+
+class Rule:
+    """a rule for an issue with the archives"""
+
+    def __init__(self, code: str, desc: str, check: Callable) -> None:
+        """issue constructor"""
+        self.code = code
+        self.check = check
+        self.desc = desc
+
+
+class Issue:
+    """an instance of an Rule being flagged"""
+
+    def __init__(self, rule: Rule, obj: Union["Class", "Function", "Module"]) -> None:
+        """constructor for issue"""
+        self.rule = rule
+        self.obj = obj
+        self.line = 0 if isinstance(obj, Module) else obj.line
+        self.column = 0 if isinstance(obj, Module) else obj.column
+
+    def __str__(self) -> str:
+        """string representation of this issue"""
+        return f"<Issue[{self.rule.code}] {self.obj}>"
+
+    def __repr__(self) -> str:
+        """repl repr for an issue"""
+        return self.__str__()
+
+
+def no_docstring(obj: Union["Class", "Function", "Module"]) -> bool:
+    """returns true if the obj has no docstring"""
+    return not obj.doc
+
+
+def no_desc(obj: Union["Class", "Function", "Module"]) -> bool:
+    """returns true if the obj has no @desc tag"""
+    return not obj.doc or not obj.doc.desc
+
+
+MODULE_RULES = [
+    Rule("M100", "module missing a docstring", no_docstring),
+    Rule("M101", "module missing an @desc tag", no_desc),
+]
+CLASS_RULES = [
+    Rule("C100", "class missing a docstring", no_docstring),
+    Rule("C101", "class missing an @desc tag", no_desc),
+]
+FUNCTION_RULES = [
+    Rule("F100", "function missing a docstring", no_docstring),
+    Rule("F101", "function missing an @desc tag", no_desc),
+]
 
 
 class Doc:
@@ -97,17 +159,23 @@ class Arg:
 class Function:
     """representation of a function"""
 
-    def __init__(self, function: ast3.FunctionDef) -> None:
+    def __init__(self, function: ast3.FunctionDef, module: "Module") -> None:
         """easier to use version of the ast function def"""
         self.name = function.name
         self.line = function.lineno
         self.column = function.col_offset
         self.body = function.body
+        self.module = module
         self.decorators = function.decorator_list
         self._args = function.args.args
         self.args = [Arg(x) for x in self._args]
         self.functions = [
-            Function(x) for x in self.body if isinstance(x, ast3.FunctionDef)
+            Function(x, self.module)
+            for x in self.body
+            if isinstance(x, ast3.FunctionDef)
+        ]
+        self.classes = [
+            Class(x, self.module) for x in self.body if isinstance(x, ast3.ClassDef)
         ]
         self.untyped = [
             x for x in self.args if not x.typed and x not in DEFAULT_ARG_IGNORE
@@ -131,17 +199,22 @@ class Function:
 class Class:
     """representation of a python class"""
 
-    def __init__(self, cls: ast3.ClassDef) -> None:
+    def __init__(self, cls: ast3.ClassDef, module: "Module") -> None:
         """easier to use version of a cls"""
         self.body = cls.body
         self.line = cls.lineno
         self.column = cls.col_offset
         self.name = cls.name
+        self.module = module
         self.decorators = cls.decorator_list
         self.functions = [
-            Function(x) for x in self.body if isinstance(x, ast3.FunctionDef)
+            Function(x, self.module)
+            for x in self.body
+            if isinstance(x, ast3.FunctionDef)
         ]
-        self.classes = [Class(x) for x in self.body if isinstance(x, ast3.ClassDef)]
+        self.classes = [
+            Class(x, self.module) for x in self.body if isinstance(x, ast3.ClassDef)
+        ]
         if isinstance(self.body[0], ast3.Expr):
             # this is most likely a doc string
             self.doc = Doc(self.body[0], Doc.Type.CLASS)
@@ -154,21 +227,24 @@ class Class:
 class Module:
     """representation of a python module"""
 
-    def __init__(self, module: ast3.Module, name: str) -> None:
+    def __init__(self, module: ast3.Module, filename: str) -> None:
         """easier to use version of a module"""
         self.body = module.body
-        self.name = name
+        self.path = filename
+        self.name = self.path.split("/")[-1]
         self.functions = [
-            Function(x) for x in self.body if isinstance(x, ast3.FunctionDef)
+            Function(x, self) for x in self.body if isinstance(x, ast3.FunctionDef)
         ]
-        self.classes = [Class(x) for x in self.body if isinstance(x, ast3.ClassDef)]
+        self.classes = [
+            Class(x, self) for x in self.body if isinstance(x, ast3.ClassDef)
+        ]
         if isinstance(self.body[0], ast3.Expr):
             # this is most likely a doc string
             self.doc = Doc(self.body[0], Doc.Type.MODULE)
 
     def __repr__(self) -> str:
         """repr for module"""
-        return f"<Module[{self.name}]>"
+        return f"<Module[{self.path}]>"
 
 
 def parse_module(filename: str) -> Module:
@@ -178,7 +254,7 @@ def parse_module(filename: str) -> Module:
     contents = ""
     with open(filename, encoding="utf-8", errors="replace") as file_to_read:
         contents += file_to_read.read()
-    return Module(ast3.parse(contents), filename.split("/")[-1])  # type: ignore
+    return Module(ast3.parse(contents), filename)  # type: ignore
 
 
 def get_python_files(
@@ -238,36 +314,139 @@ def find_project_root(srcs: Iterable[str]) -> Path:
     return directory
 
 
-def function_lint(function: Function, parent: Union[Module, Class, Function]) -> int:
+def function_lint(
+    function: Function,
+    class_rules: List[Rule] = None,
+    function_rules: List[Rule] = None,
+) -> List:
     """function specific lint"""
-    if function.unexpected_args or function.missing_args:
-        for arg in function.unexpected_args:
-            ERR(f"{parent.name}[{function.name}] unexpected arg {arg}")
-        for arg in function.missing_args:
-            ERR(f"{parent.name}[{function.name}] missing arg {arg}")
-        return 1
-    return 0
+    if not class_rules:
+        class_rules = CLASS_RULES
+    if not function_rules:
+        function_rules = FUNCTION_RULES
+
+    issues = []
+
+    # check this function for rules
+    for rule in function_rules:
+        if rule.check(function):
+            issues.append(Issue(rule, function))
+
+    # check nested classes
+    for sub_class in function.classes:
+        issues.extend(
+            class_lint(
+                sub_class, class_rules=class_rules, function_rules=function_rules
+            )
+        )
+
+    # check all sub functions
+    for sub_function in function.functions:
+        issues.extend(
+            function_lint(
+                sub_function, class_rules=class_rules, function_rules=function_rules
+            )
+        )
+
+    return issues
 
 
-def lint(module: Module) -> int:
+def class_lint(
+    class_def: Class, class_rules: List[Rule] = None, function_rules: List[Rule] = None
+) -> List:
+    """class specific lint"""
+    if not class_rules:
+        class_rules = CLASS_RULES
+    if not function_rules:
+        function_rules = FUNCTION_RULES
+
+    issues = []
+
+    # check this class for rules
+    for rule in class_rules:
+        if rule.check(class_def):
+            issues.append(Issue(rule, class_def))
+
+    # check nested classes
+    for sub_class in class_def.classes:
+        issues.extend(
+            class_lint(
+                sub_class, class_rules=class_rules, function_rules=function_rules
+            )
+        )
+
+    # check functions within this class
+    for function in class_def.functions:
+        issues.extend(
+            function_lint(
+                function, class_rules=class_rules, function_rules=function_rules
+            )
+        )
+
+    return issues
+
+
+def lint(
+    module: Module,
+    module_rules: List[Rule] = None,
+    class_rules: List[Rule] = None,
+    function_rules: List[Rule] = None,
+) -> List:
     """lint the given module, returning an exit code if any errors"""
-    return_code = 0
-    ERR(f"linting {module.name}: {module.functions}")
-    for function in module.functions:
-        ERR(f"\tlinting {function.name}")
-        if function_lint(function, module) != 0:
-            return_code = 1
+    if not module_rules:
+        module_rules = MODULE_RULES
+    if not class_rules:
+        class_rules = CLASS_RULES
+    if not function_rules:
+        function_rules = FUNCTION_RULES
+    issues = []
+
+    for rule in module_rules:
+        if rule.check(module):
+            issues.append(Issue(rule, module))
 
     for class_def in module.classes:
-        for function in class_def.functions:
-            if function_lint(function, class_def) != 0:
-                return_code = 1
-    return return_code
+        issues.extend(
+            class_lint(
+                class_def, class_rules=class_rules, function_rules=function_rules
+            )
+        )
+
+    for function in module.functions:
+        issues.extend(
+            function_lint(
+                function, class_rules=class_rules, function_rules=function_rules
+            )
+        )
+
+    return issues
 
 
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
-@click.option("--include", type=str, default=DEFAULT_INCLUDES, show_default=True)
-@click.option("--exclude", type=str, default=DEFAULT_EXCLUDES, show_default=True)
+@click.option(
+    "--include",
+    type=str,
+    default=DEFAULT_INCLUDES,
+    show_default=True,
+    help="regex for files and folders to include",
+)
+@click.option(
+    "--exclude",
+    type=str,
+    default=DEFAULT_EXCLUDES,
+    show_default=True,
+    help="regex for files and folders to exclude",
+)
+@click.option(
+    "--format",
+    type=click.Choice(FORMATS.keys()),
+    default="flake8",
+    show_default=True,
+    help="format of issue output messages",
+)
+@click.option(
+    "--disable", type=str, default="", help="comma separated list of rules to disable"
+)
 @click.option("-q", "--quiet", is_flag=True)
 @click.option("-v", "--verbose", is_flag=True)
 @click.version_option(version=__version__)
@@ -286,10 +465,11 @@ def archives(
     verbose: bool,
     include: str,
     exclude: str,
+    format: str,
+    disable: str,
     src: Tuple[str],
 ) -> None:
     """archives"""
-    return_code = 0
     try:
         include_regex = re.compile(include)
     except re.error:
@@ -317,14 +497,43 @@ def archives(
             OUT("no python files are detected")
         ctx.exit(0)
 
-    # do stuff with the files
-    for file in sources:
-        module = parse_module(str(file))
-        response = lint(module)
-        if response != 0:
-            return_code = 1
+    # apply disables
+    disable_list = disable.split(",")
+    module_rules = [x for x in MODULE_RULES if x.code not in disable_list]
+    class_rules = [x for x in CLASS_RULES if x.code not in disable_list]
+    function_rules = [x for x in FUNCTION_RULES if x.code not in disable_list]
 
-    ctx.exit(return_code)
+    # do stuff with the files
+    issues = []
+    for file in sources:
+        module = parse_module(str(file.absolute()))
+        issues.extend(
+            lint(
+                module,
+                module_rules=module_rules,
+                class_rules=class_rules,
+                function_rules=function_rules,
+            )
+        )
+
+    for issue in issues:
+        obj = issue.obj
+        rule = issue.rule
+        module = obj if isinstance(obj, Module) else obj.module
+        message = FORMATS[format].format_map(
+            defaultdict(
+                str,
+                path=module.path,
+                line=issue.line,
+                column=issue.column,
+                code=rule.code,
+                text=rule.desc,
+                name=obj.name,
+            )
+        )
+        MSG(message)
+
+    ctx.exit(0 if not issues else 1)
 
 
 def path_empty(src: Tuple[str], quiet: bool, verbose: bool, ctx: click.Context) -> None:
