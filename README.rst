@@ -47,12 +47,15 @@ Installation
 Testing
 -------
 
-Tests can (almost) be run with tox!
+Tests can be run with tox!
 
 .. code-block:: bash
 
    # run tests
    tox
+
+   # only one version of python
+   tox -e py36
 
 
 Todo

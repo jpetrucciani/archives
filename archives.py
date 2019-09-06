@@ -469,7 +469,7 @@ def archives(
     disable: str,
     src: Tuple[str],
 ) -> None:
-    """archives"""
+    """check if your code's archives are incomplete!"""
     try:
         include_regex = re.compile(include)
     except re.error:
