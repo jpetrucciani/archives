@@ -15,7 +15,7 @@ from typed_ast import ast3
 from typing import Callable, Dict, Iterator, Iterable, List, Pattern, Set, Tuple, Union
 
 
-__version__ = "0.3"
+__version__ = "0.4"
 DEFAULT_EXCLUDES_LIST = [
     r"\.eggs",
     r"\.git",

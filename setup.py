@@ -15,7 +15,7 @@ with open("README.rst") as readme:
 
 setup(
     name=LIBRARY,
-    version="0.3",
+    version="0.4",
     description=("a new way to do python code documentation"),
     long_description=LONG_DESCRIPTION,
     author="Jacobi Petrucciani",
@@ -24,6 +24,7 @@ setup(
     download_url="https://github.com/jpetrucciani/{}.git".format(LIBRARY),
     license="MIT",
     packages=find_packages(),
+    py_modules=["archives"],
     install_requires=REQUIRED,
     classifiers=[
         "Programming Language :: Python :: 3",
