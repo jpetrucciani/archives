@@ -1,6 +1,6 @@
 """
 archives
-- perhaps the archives are incomplete?
+perhaps the archives are incomplete?
 """
 import click
 import os
@@ -13,7 +13,7 @@ from typed_ast import ast3
 from typing import Callable, Iterator, Iterable, List, Pattern, Set, Tuple, Union
 
 
-__version__ = "0.1"
+__version__ = "0.2"
 DEFAULT_EXCLUDES_LIST = [
     r"\.eggs",
     r"\.git",
@@ -106,6 +106,32 @@ FUNCTION_RULES = [
 ]
 
 
+class Annotation:
+    """representation of a type annotation in python code"""
+
+    def __init__(self, anno) -> None:
+        """annotation constructor"""
+        self.type = ""
+        self._annotation = anno
+        if isinstance(anno, ast3.Name):
+            self.type = anno.id
+        if isinstance(anno, ast3.Subscript):
+            value = anno.slice.value  # type: ignore
+            if isinstance(value, ast3.Name):
+                internal = value.id
+            else:
+                internal = ", ".join([x.s for x in value.elts])
+            self.type = f"{anno.value.id}[{internal}]"
+
+    def __str__(self) -> str:
+        """string representation"""
+        return self.type
+
+    def __repr__(self) -> str:
+        """repr representation"""
+        return self.__str__()
+
+
 class Doc:
     """representation of a doc string"""
 
@@ -146,10 +172,11 @@ class Arg:
         self.column = arg.col_offset
         self.name = arg.arg
         if arg.annotation:
+            anno = arg.annotation
             self.typed = True
-            self.type = arg.annotation.id  # type: ignore
-            self.type_line = arg.annotation.lineno
-            self.type_column = arg.annotation.col_offset
+            self.type = Annotation(anno)
+            self.type_line = anno.lineno
+            self.type_column = anno.col_offset
 
     def __repr__(self) -> str:
         """repr for arg"""
@@ -161,6 +188,7 @@ class Function:
 
     def __init__(self, function: ast3.FunctionDef, module: "Module") -> None:
         """easier to use version of the ast function def"""
+        self._function = function
         self.name = function.name
         self.line = function.lineno
         self.column = function.col_offset
@@ -181,6 +209,7 @@ class Function:
             x for x in self.args if not x.typed and x not in DEFAULT_ARG_IGNORE
         ]
         self.doc = None
+        self.returns = None
         self.missing_args: Set[str] = set()
         self.unexpected_args: Set[str] = set()
         arg_names = set(x.name for x in self.args if x.name not in DEFAULT_ARG_IGNORE)
@@ -190,6 +219,12 @@ class Function:
             doc_arg_names = set(x for x, y in self.doc.args.items())
             self.missing_args = arg_names - doc_arg_names
             self.unexpected_args = doc_arg_names - arg_names
+        if function.returns:
+            ret = function.returns
+            try:
+                self.returns = ret  # type: ignore
+            except AttributeError:
+                self.type = ret.value  # type: ignore
 
     def __repr__(self) -> str:
         """repr for function"""
@@ -292,7 +327,7 @@ def get_python_files(
 
 
 @lru_cache()
-def find_project_root(srcs: Iterable[str]) -> Path:
+def find_project_root(sources: Iterable[str]) -> Path:
     """
     Return a directory containing .git, .hg, or pyproject.toml.
     That directory can be one of the directories passed in `srcs` or their
@@ -300,10 +335,10 @@ def find_project_root(srcs: Iterable[str]) -> Path:
     If no directory in the tree contains a marker that would specify it's the
     project root, the root of the file system is returned.
     """
-    if not srcs:
+    if not sources:
         return Path("/").resolve()
 
-    common_base = min(Path(src).resolve() for src in srcs)
+    common_base = min(Path(src).resolve() for src in sources)
     if common_base.is_dir():
         # Append a fake file so `parents` below returns `common_base_dir`, too.
         common_base /= "fake-file"
