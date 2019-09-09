@@ -5,7 +5,7 @@ pip setup file
 from setuptools import setup, find_packages
 
 
-REQUIRED = ["click>=7.0"]
+REQUIRED = ["click>=7.0", "typed-ast>=1.4.0", "radon>=3.0.3"]
 LIBRARY = "archives"
 
 
@@ -15,7 +15,7 @@ with open("README.rst") as readme:
 
 setup(
     name=LIBRARY,
-    version="0.4",
+    version="0.5",
     description=("a new way to do python code documentation"),
     long_description=LONG_DESCRIPTION,
     author="Jacobi Petrucciani",
