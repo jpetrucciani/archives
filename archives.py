@@ -3,6 +3,7 @@ archives
 @desc perhaps the archives are incomplete?
 """
 import click
+import json
 import os
 import re
 from collections import defaultdict
@@ -15,7 +16,7 @@ from typed_ast import ast3
 from typing import Callable, Dict, Iterator, Iterable, List, Pattern, Set, Tuple, Union
 
 
-__version__ = "0.4"
+__version__ = "0.6"
 DEFAULT_EXCLUDES_LIST = [
     r"\.eggs",
     r"\.git",
@@ -38,6 +39,43 @@ ERR = partial(click.secho, fg="red", err=True)
 MSG = partial(click.secho, fg="blue", err=True)
 
 
+class State:
+    """
+    @desc state object for click
+    """
+
+    def __init__(self) -> None:
+        """
+        @cc 1
+        @desc state constructor
+        """
+        self.verbose = False
+        self.quiet = False
+        self.disable_list: List[str] = []
+
+
+def get_state():
+    """
+    @cc 1
+    @desc gets the current state of the click app
+    @ret the current click state object
+    """
+    return click.get_current_context().ensure_object(State)
+
+
+def debug(data: Union[str, Dict, List]) -> None:
+    """
+    @cc 2
+    @desc only prints if verbose mode is on, formatting nicely if list/dict
+    @arg data: either a string to print, or a list/dict to print nicely
+    """
+    state = get_state()
+    if state.verbose:
+        if isinstance(data, dict) or isinstance(data, list):
+            data = json.dumps(data, indent=2, sort_keys=True, default=str)
+        click.echo(click.style(data, fg="green"), err=True)
+
+
 # templates for archives tags
 class Tag:
     """
@@ -46,11 +84,11 @@ class Tag:
 
     CHAR = "@"
     EOL = r"(?:\n|\Z)"
-    CC = re.compile(rf"(?:{CHAR}cc) ([0-9]+){EOL}")
-    DESC = re.compile(rf"(?:{CHAR}desc):? (.+){EOL}")
-    ARG = re.compile(rf"(?:{CHAR}arg) ([a-zA-Z0-9_]+):? (.+){EOL}")
-    RETURN = re.compile(rf"(?:{CHAR}ret):? (.+){EOL}")
-    LINK = re.compile(rf"(?:{CHAR}link) ([a-zA-Z0-9_]+):? (.+){EOL}")
+    CC = re.compile(rf"(?:{CHAR}cc):?(?:\s+)([0-9]+){EOL}")
+    DESC = re.compile(rf"(?:{CHAR}desc):?(?:\s+)(.+){EOL}")
+    RETURN = re.compile(rf"(?:{CHAR}ret):?(?:\s+)(.+){EOL}")
+    ARG = re.compile(rf"(?:{CHAR}arg)(?:\s+)([a-zA-Z0-9_]+):?(?:\s+)(.+){EOL}")
+    LINK = re.compile(rf"(?:{CHAR}link)(?:\s+)([a-zA-Z0-9_]+):?(?:\s+)(.+){EOL}")
 
 
 DEFAULT_ARG_IGNORE = ["self", "cls"]
@@ -73,7 +111,6 @@ class Rule:
         @arg code: the error code for the rule
         @arg desc: the description string
         @arg check: a function to check if this rule is broken
-        @ret nothing
         """
         self.code = code
         self.check = check
@@ -94,7 +131,6 @@ class Issue:
         @arg rule: an instance of the rule being broken
         @arg obj: either a class, function, or module that breaks the rule
         @arg extra: extra data to pass to the issue description template
-        @ret nothing
         """
         self.rule = rule
         self.obj = obj
@@ -159,14 +195,36 @@ def wrong_cc(obj: "Function") -> bool:
     return not obj.doc or not obj.doc.cc or obj.doc.cc != obj.complexity
 
 
-def no_ret(obj: "Function") -> bool:
+def no_ret(function: "Function") -> bool:
     """
-    @cc 1
+    @cc 2
     @desc no return tag test
-    @arg obj: a function to check
+    @arg function: a function to check
     @ret true if the function does not have a @ret tag
     """
-    return not obj.doc or not obj.doc.ret
+    returns_none = bool(
+        function.returns
+        and isinstance(function.returns, ast3.NameConstant)
+        and not function.returns.value
+    )
+    if returns_none:
+        return False
+    return not function.doc or not function.doc.ret
+
+
+def unnecessary_ret(function: "Function") -> bool:
+    """
+    @cc 1
+    @desc unnecessary return tag test
+    @arg function: a function to check
+    @ret true if the function has a @ret tag but doesn't need one
+    """
+    returns_none = bool(
+        function.returns
+        and isinstance(function.returns, ast3.NameConstant)
+        and not function.returns.value
+    )
+    return bool(returns_none and function.doc and function.doc.ret)
 
 
 def nop(obj: Union["Class", "Function", "Module"]) -> bool:
@@ -197,9 +255,10 @@ FUNCTION_RULES = [
         wrong_cc,
     ),
     Rule("F104", "function '{name}' missing @ret tag", no_ret),
+    Rule("F105", "function '{name}' has unnecessary @ret tag", unnecessary_ret),
 ]
-MISSING_ARG = Rule("F105", "function '{name}' missing @arg for '{arg}'", nop)
-UNEXPECTED_ARG = Rule("F106", "function '{name}' unexpected @arg for '{arg}'", nop)
+MISSING_ARG = Rule("F106", "function '{name}' missing @arg for '{arg}'", nop)
+UNEXPECTED_ARG = Rule("F107", "function '{name}' unexpected @arg for '{arg}'", nop)
 
 
 class Annotation:
@@ -212,7 +271,6 @@ class Annotation:
         @cc 3
         @desc annotation constructor
         @arg anno: an AST annotation object to parse
-        @ret nothing
         """
         self.type = ""
         self._annotation = anno
@@ -223,7 +281,9 @@ class Annotation:
             if isinstance(value, ast3.Name):
                 internal = value.id
             else:
-                internal = ", ".join([x.s for x in value.elts])
+                internal = ", ".join(
+                    [x.id if isinstance(x, ast3.Name) else x.s for x in value.elts]
+                )
             self.type = f"{anno.value.id}[{internal}]"  # type: ignore
 
     def __str__(self) -> str:
@@ -263,7 +323,6 @@ class Doc:
         @desc easier to use version of the ast docstring def
         @arg doc_string: the expression used to represent a docstring
         @arg doc_type: the enum type of doc string this is used for
-        @ret nothing
         """
         self.value = doc_string.value.s.strip()  # type: ignore
         desc = Tag.DESC.search(self.value)
@@ -299,7 +358,7 @@ class Arg:
         @cc 2
         @desc easier to use version of the ast arg def
         @arg arg: the AST arg object to parse
-        @ret nothing
+
         """
         self.typed = False
         self.line = arg.lineno
@@ -332,7 +391,6 @@ class Function:
         @desc easier to use version of the ast function def
         @arg function: the AST functionDef to parse
         @arg module: the module this function resides in
-        @ret nothing
         """
 
         # easy data
@@ -403,7 +461,6 @@ class Class:
         @desc easier to use version of a class
         @arg cls: the AST classDef to parse
         @arg module: the module this class resides in
-        @ret nothing
         """
         self.body = cls.body
         self.line = cls.lineno
@@ -443,7 +500,6 @@ class Module:
         @desc easier to use version of a module
         @arg module: the AST module to parse
         @arg filename: the filename of the module we're parsing
-        @ret nothing
         """
         self.body = module.body
         self.path = filename
@@ -748,8 +804,12 @@ def archives(
     @arg disable: a comma separated disable list for rules
     @arg list_rules: a flag to print the list of rules and exit
     @arg src: a file or directory to scan for files to lint
-    @ret nothing
     """
+    state = ctx.ensure_object(State)
+    state.verbose = verbose
+    state.quiet = quiet
+    state.disable_list = disable.split(",")
+
     if list_rules:
         for rule in [
             *MODULE_RULES,
@@ -772,7 +832,7 @@ def archives(
         ctx.exit(2)
     root = find_project_root(src)
     sources: Set[Path] = set()
-    path_empty(src, quiet, verbose, ctx)
+    path_empty(src, ctx)
     for source in src:
         path = Path(source)
         if path.is_dir():
@@ -783,15 +843,14 @@ def archives(
         else:
             ERR(f"invalid path: {source}")
     if not sources:
-        if verbose or not quiet:
+        if state.verbose or not state.quiet:
             OUT("no python files are detected")
         ctx.exit(0)
 
     # apply disables
-    disable_list = disable.split(",")
-    module_rules = [x for x in MODULE_RULES if x.code not in disable_list]
-    class_rules = [x for x in CLASS_RULES if x.code not in disable_list]
-    function_rules = [x for x in FUNCTION_RULES if x.code not in disable_list]
+    module_rules = [x for x in MODULE_RULES if x.code not in state.disable_list]
+    class_rules = [x for x in CLASS_RULES if x.code not in state.disable_list]
+    function_rules = [x for x in FUNCTION_RULES if x.code not in state.disable_list]
 
     # lint the files
     issues = []
@@ -831,30 +890,28 @@ def archives(
             )
         )
         MSG(message)
-
-    if verbose:
+    if not quiet:
         if issues:
-            ERR(
-                f"\nImpossible! Perhaps your archives are incomplete?\n{len(issues)} issues found."
-            )
+            trailing_s = "s" if len(issues) != 1 else ""
+            ERR(f"\nImpossible! Perhaps your archives are incomplete?")
+            ERR(f"{len(issues)} issue{trailing_s} found")
         else:
             MSG(f"Incredible! It appears that your archives are complete!")
 
     ctx.exit(0 if not issues else 1)
 
 
-def path_empty(src: Tuple[str], quiet: bool, verbose: bool, ctx: click.Context) -> None:
+def path_empty(src: Tuple[str], ctx: click.Context) -> None:
     """
     @cc 2
     @desc Exit if there is no src provided for formatting
     @arg src: a list of source files to lint
-    @arg quiet: if quiet mode is turned on
-    @arg verbose: if verbose mode is on
     @arg ctx: the context of the click cli application
     """
+    state = get_state()
     if not src:
-        if verbose or not quiet:
-            OUT("no paths provided!")
+        if state.verbose or not state.quiet:
+            ERR("no paths provided!")
         ctx.exit(2)
 
 
