@@ -13,6 +13,13 @@ def good_function(text: str, meme: int = 420) -> float:
     return 4.20
 
 
+def nested_function(text: str) -> None:
+    """this is nested"""
+
+    def sub_function(text: str) -> None:
+        """this doesn't really do anything"""
+
+
 class BadClass:
     """lame"""
 

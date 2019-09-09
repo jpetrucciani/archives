@@ -6,6 +6,7 @@ name = "pypi"
 [packages]
 click = ">=7.0"
 typed-ast = ">=1.4.0"
+radon = ">=3.0.3"
 
 [dev-packages]
 tox = "*"

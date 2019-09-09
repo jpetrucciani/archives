@@ -5,21 +5,23 @@ pip setup file
 from setuptools import setup, find_packages
 
 
+REQUIRED = ["click>=7.0"]
+LIBRARY = "archives"
+
+
 with open("README.rst") as readme:
     LONG_DESCRIPTION = readme.read()
 
 
-REQUIRED = ["click>=7.0"]
-
 setup(
-    name="archives",
-    version="0.2",
+    name=LIBRARY,
+    version="0.3",
     description=("a new way to do python code documentation"),
     long_description=LONG_DESCRIPTION,
     author="Jacobi Petrucciani",
     author_email="jacobi@mimirhq.com",
-    url="https://github.com/jpetrucciani/archives.git",
-    download_url="https://github.com/jpetrucciani/archives.git",
+    url="https://github.com/jpetrucciani/{}.git".format(LIBRARY),
+    download_url="https://github.com/jpetrucciani/{}.git".format(LIBRARY),
     license="MIT",
     packages=find_packages(),
     install_requires=REQUIRED,

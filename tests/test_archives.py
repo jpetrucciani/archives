@@ -15,12 +15,19 @@ def run(function: Callable, args: List = None):
 def test_no_files():
     """test that no files are passed in"""
     result = run(archives)
-    assert result.exit_code == 0
-    assert "no path provided" in result.output
+    assert result.exit_code == 2
+    assert "no paths provided!" in result.output
 
 
 def test_help():
-    """test that no files are passed in"""
+    """test the help flag"""
     result = run(archives, ["--help"])
     assert result.exit_code == 0
     assert "check if your code's archives are incomplete!" in result.output
+
+
+def test_list_rules():
+    """test listing rules flag"""
+    result = run(archives, ["--list-rules"])
+    assert result.exit_code == 0
+    assert "F101" in result.output

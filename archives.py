@@ -1,6 +1,6 @@
 """
 archives
-perhaps the archives are incomplete?
+@desc perhaps the archives are incomplete?
 """
 import click
 import os
@@ -9,11 +9,13 @@ from collections import defaultdict
 from enum import Enum
 from functools import lru_cache, partial
 from pathlib import Path
+from radon.complexity import cc_visit_ast
+from radon.metrics import h_visit_ast
 from typed_ast import ast3
-from typing import Callable, Iterator, Iterable, List, Pattern, Set, Tuple, Union
+from typing import Callable, Dict, Iterator, Iterable, List, Pattern, Set, Tuple, Union
 
 
-__version__ = "0.2"
+__version__ = "0.3"
 DEFAULT_EXCLUDES_LIST = [
     r"\.eggs",
     r"\.git",
@@ -37,80 +39,181 @@ MSG = partial(click.secho, fg="blue", err=True)
 
 
 # templates for archives tags
-CHAR = "@"
-EOL = r"(?:\n|\Z)"
-DESC = re.compile(rf"(?:{CHAR}desc) (.+){EOL}")
-ARG = re.compile(rf"(?:{CHAR}arg) ([a-zA-Z0-9_]+) (.+){EOL}")
-RETURN = re.compile(rf"(?:{CHAR}ret) (.+){EOL}")
-LINK = re.compile(rf"(?:{CHAR}link) ([a-zA-Z0-9_]+) (.+){EOL}")
+class Tag:
+    """
+    @desc tag namespace
+    """
+
+    CHAR = "@"
+    EOL = r"(?:\n|\Z)"
+    CC = re.compile(rf"(?:{CHAR}cc) ([0-9]+){EOL}")
+    DESC = re.compile(rf"(?:{CHAR}desc):? (.+){EOL}")
+    ARG = re.compile(rf"(?:{CHAR}arg) ([a-zA-Z0-9_]+):? (.+){EOL}")
+    RETURN = re.compile(rf"(?:{CHAR}ret):? (.+){EOL}")
+    LINK = re.compile(rf"(?:{CHAR}link) ([a-zA-Z0-9_]+):? (.+){EOL}")
 
 
 DEFAULT_ARG_IGNORE = ["self", "cls"]
 
 FORMATS = {
-    "flake8": "{path}:{line}:{column}: {code} {text} for '{name}'",
-    "pylint": "{path}:{line}: [{code}] {text} for '{name}'",
+    "flake8": "{path}:{line}:{column}: {code} {text}",
+    "pylint": "{path}:{line}: [{code}] {text}",
 }
 
 
 class Rule:
-    """a rule for an issue with the archives"""
+    """
+    @desc a rule for an issue with the archives
+    """
 
     def __init__(self, code: str, desc: str, check: Callable) -> None:
-        """issue constructor"""
+        """
+        @cc 1
+        @desc issue constructor
+        @arg code: the error code for the rule
+        @arg desc: the description string
+        @arg check: a function to check if this rule is broken
+        @ret nothing
+        """
         self.code = code
         self.check = check
         self.desc = desc
 
 
 class Issue:
-    """an instance of an Rule being flagged"""
+    """
+    @desc an instance of a Rule being flagged
+    """
 
-    def __init__(self, rule: Rule, obj: Union["Class", "Function", "Module"]) -> None:
-        """constructor for issue"""
+    def __init__(
+        self, rule: Rule, obj: Union["Class", "Function", "Module"], extra: Dict = None
+    ) -> None:
+        """
+        @cc 1
+        @desc constructor for issue
+        @arg rule: an instance of the rule being broken
+        @arg obj: either a class, function, or module that breaks the rule
+        @arg extra: extra data to pass to the issue description template
+        @ret nothing
+        """
         self.rule = rule
         self.obj = obj
         self.line = 0 if isinstance(obj, Module) else obj.line
         self.column = 0 if isinstance(obj, Module) else obj.column
+        self.extra = extra or {}
 
     def __str__(self) -> str:
-        """string representation of this issue"""
+        """
+        @cc 1
+        @desc string dunder method
+        @ret the string representation of this Issue
+        """
         return f"<Issue[{self.rule.code}] {self.obj}>"
 
     def __repr__(self) -> str:
-        """repl repr for an issue"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repl representation of this Issue
+        """
         return self.__str__()
 
 
 def no_docstring(obj: Union["Class", "Function", "Module"]) -> bool:
-    """returns true if the obj has no docstring"""
+    """
+    @cc 1
+    @desc no docstring test
+    @arg obj: a class, function, or module to check
+    @ret true if the obj has no docstring
+    """
     return not obj.doc
 
 
 def no_desc(obj: Union["Class", "Function", "Module"]) -> bool:
-    """returns true if the obj has no @desc tag"""
+    """
+    @cc 1
+    @desc no description test
+    @arg obj: a class, function, or module to check
+    @ret true if the obj has no @desc tag
+    """
     return not obj.doc or not obj.doc.desc
 
 
+def no_cc(obj: "Function") -> bool:
+    """
+    @cc 1
+    @desc no cyclomatic complexity test
+    @arg obj: a function to check
+    @ret true if the function does not have a @cc tag
+    """
+    return not obj.doc or obj.doc.cc == -1
+
+
+def wrong_cc(obj: "Function") -> bool:
+    """
+    @cc 1
+    @desc incorrect cyclomatic complexity test
+    @arg obj: a function to check
+    @ret true if the function has an incorrect @cc tag
+    """
+    return not obj.doc or not obj.doc.cc or obj.doc.cc != obj.complexity
+
+
+def no_ret(obj: "Function") -> bool:
+    """
+    @cc 1
+    @desc no return tag test
+    @arg obj: a function to check
+    @ret true if the function does not have a @ret tag
+    """
+    return not obj.doc or not obj.doc.ret
+
+
+def nop(obj: Union["Class", "Function", "Module"]) -> bool:
+    """
+    @cc 1
+    @desc a no-op check to allow for issues that can be manually added
+    @arg obj: a class, function, or module to check
+    @ret always True
+    """
+    return True
+
+
 MODULE_RULES = [
-    Rule("M100", "module missing a docstring", no_docstring),
-    Rule("M101", "module missing an @desc tag", no_desc),
+    Rule("M100", "module '{name}' missing docstring", no_docstring),
+    Rule("M101", "module '{name}' missing @desc tag", no_desc),
 ]
 CLASS_RULES = [
-    Rule("C100", "class missing a docstring", no_docstring),
-    Rule("C101", "class missing an @desc tag", no_desc),
+    Rule("C100", "class '{name}' missing docstring", no_docstring),
+    Rule("C101", "class '{name}' missing @desc tag", no_desc),
 ]
 FUNCTION_RULES = [
-    Rule("F100", "function missing a docstring", no_docstring),
-    Rule("F101", "function missing an @desc tag", no_desc),
+    Rule("F100", "function '{name}' missing docstring", no_docstring),
+    Rule("F101", "function '{name}' missing @desc tag", no_desc),
+    Rule("F102", "function '{name}' missing @cc tag (cc: {cc})", no_cc),
+    Rule(
+        "F103",
+        "function '{name}' mismatched @cc tag ({doc_cc}, expected {cc})",
+        wrong_cc,
+    ),
+    Rule("F104", "function '{name}' missing @ret tag", no_ret),
 ]
+MISSING_ARG = Rule("F105", "function '{name}' missing @arg for '{arg}'", nop)
+UNEXPECTED_ARG = Rule("F106", "function '{name}' unexpected @arg for '{arg}'", nop)
 
 
 class Annotation:
-    """representation of a type annotation in python code"""
+    """
+    @desc representation of a type annotation in python code
+    """
 
     def __init__(self, anno) -> None:
-        """annotation constructor"""
+        """
+        @cc 3
+        @desc annotation constructor
+        @arg anno: an AST annotation object to parse
+        @ret nothing
+        """
         self.type = ""
         self._annotation = anno
         if isinstance(anno, ast3.Name):
@@ -121,52 +224,83 @@ class Annotation:
                 internal = value.id
             else:
                 internal = ", ".join([x.s for x in value.elts])
-            self.type = f"{anno.value.id}[{internal}]"
+            self.type = f"{anno.value.id}[{internal}]"  # type: ignore
 
     def __str__(self) -> str:
-        """string representation"""
+        """
+        @cc 1
+        @desc string dunder method
+        @ret the string representation of this Annotation
+        """
         return self.type
 
     def __repr__(self) -> str:
-        """repr representation"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repl representation of this Annotation
+        """
         return self.__str__()
 
 
 class Doc:
-    """representation of a doc string"""
+    """
+    @desc representation of a doc string
+    """
 
     class Type(Enum):
-        """what type of docstring?"""
+        """
+        @desc enum for the type of docstring
+        """
 
         FUNCTION = 0
         CLASS = 1
         MODULE = 2
 
     def __init__(self, doc_string: ast3.Expr, doc_type: Type) -> None:
-        """easier to use version of the ast docstring def"""
+        """
+        @cc 1
+        @desc easier to use version of the ast docstring def
+        @arg doc_string: the expression used to represent a docstring
+        @arg doc_type: the enum type of doc string this is used for
+        @ret nothing
+        """
         self.value = doc_string.value.s.strip()  # type: ignore
-        desc = DESC.search(self.value)
-        ret = RETURN.search(self.value)
+        desc = Tag.DESC.search(self.value)
+        ret = Tag.RETURN.search(self.value)
+        cc = Tag.CC.search(self.value)
 
         self.desc = desc[1] if desc else ""
         self.args = {
-            x: y for x, y in ARG.findall(self.value) if x not in DEFAULT_ARG_IGNORE
+            x: y for x, y in Tag.ARG.findall(self.value) if x not in DEFAULT_ARG_IGNORE
         }
         self.links = {
-            x: y for x, y in LINK.findall(self.value) if x not in DEFAULT_ARG_IGNORE
+            x: y for x, y in Tag.LINK.findall(self.value) if x not in DEFAULT_ARG_IGNORE
         }
         self.ret = ret[1] if ret else ""
+        self.cc = int(cc[1] if cc else -1)
 
     def __repr__(self) -> str:
-        """repr for doc"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repr representation of this Issue
+        """
         return f"<Doc>"
 
 
 class Arg:
-    """representation of an arg"""
+    """
+    @desc representation of an arg
+    """
 
     def __init__(self, arg: ast3.arg) -> None:
-        """easier to use version of the ast arg def"""
+        """
+        @cc 2
+        @desc easier to use version of the ast arg def
+        @arg arg: the AST arg object to parse
+        @ret nothing
+        """
         self.typed = False
         self.line = arg.lineno
         self.column = arg.col_offset
@@ -179,15 +313,29 @@ class Arg:
             self.type_column = anno.col_offset
 
     def __repr__(self) -> str:
-        """repr for arg"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repr representation of this Issue
+        """
         return f"<Arg[{self.name}](line:{self.line})>"
 
 
 class Function:
-    """representation of a function"""
+    """
+    @desc representation of a function
+    """
 
     def __init__(self, function: ast3.FunctionDef, module: "Module") -> None:
-        """easier to use version of the ast function def"""
+        """
+        @cc 3
+        @desc easier to use version of the ast function def
+        @arg function: the AST functionDef to parse
+        @arg module: the module this function resides in
+        @ret nothing
+        """
+
+        # easy data
         self._function = function
         self.name = function.name
         self.line = function.lineno
@@ -195,6 +343,8 @@ class Function:
         self.body = function.body
         self.module = module
         self.decorators = function.decorator_list
+
+        # time to parse arguments
         self._args = function.args.args
         self.args = [Arg(x) for x in self._args]
         self.functions = [
@@ -213,6 +363,7 @@ class Function:
         self.missing_args: Set[str] = set()
         self.unexpected_args: Set[str] = set()
         arg_names = set(x.name for x in self.args if x.name not in DEFAULT_ARG_IGNORE)
+        self.missing_args = arg_names
         if isinstance(self.body[0], ast3.Expr):
             # this is most likely a doc string
             self.doc = Doc(self.body[0], Doc.Type.FUNCTION)
@@ -226,16 +377,34 @@ class Function:
             except AttributeError:
                 self.type = ret.value  # type: ignore
 
+        # complexity checks
+        self._radon = cc_visit_ast(self._function)[0]
+        self.complexity = self._radon.complexity
+        self.is_method = self._radon.is_method
+        self._halstead = h_visit_ast(self._function)
+
     def __repr__(self) -> str:
-        """repr for function"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repr representation of this Issue
+        """
         return f"<Function[{self.name}](line:{self.line})>"
 
 
 class Class:
-    """representation of a python class"""
+    """
+    @desc representation of a python class
+    """
 
     def __init__(self, cls: ast3.ClassDef, module: "Module") -> None:
-        """easier to use version of a cls"""
+        """
+        @cc 2
+        @desc easier to use version of a class
+        @arg cls: the AST classDef to parse
+        @arg module: the module this class resides in
+        @ret nothing
+        """
         self.body = cls.body
         self.line = cls.lineno
         self.column = cls.col_offset
@@ -255,15 +424,27 @@ class Class:
             self.doc = Doc(self.body[0], Doc.Type.CLASS)
 
     def __repr__(self) -> str:
-        """repr for module"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repr representation of this Issue
+        """
         return f"<Class[{self.name}](line:{self.line})>"
 
 
 class Module:
-    """representation of a python module"""
+    """
+    @desc representation of a python module
+    """
 
     def __init__(self, module: ast3.Module, filename: str) -> None:
-        """easier to use version of a module"""
+        """
+        @cc 2
+        @desc easier to use version of a module
+        @arg module: the AST module to parse
+        @arg filename: the filename of the module we're parsing
+        @ret nothing
+        """
         self.body = module.body
         self.path = filename
         self.name = self.path.split("/")[-1]
@@ -278,12 +459,21 @@ class Module:
             self.doc = Doc(self.body[0], Doc.Type.MODULE)
 
     def __repr__(self) -> str:
-        """repr for module"""
+        """
+        @cc 1
+        @desc repr dunder method
+        @ret the repr representation of this Issue
+        """
         return f"<Module[{self.path}]>"
 
 
 def parse_module(filename: str) -> Module:
-    """parse a module into our archives models"""
+    """
+    @cc 2
+    @desc parse a module into our archives' models
+    @arg filename: the python file to parse
+    @ret a parsed Module object of the given file
+    """
     if not os.path.isfile(filename):
         raise Exception("file does not exist")
     contents = ""
@@ -296,10 +486,13 @@ def get_python_files(
     path: Path, root: Path, include: Pattern[str], exclude: Pattern[str]
 ) -> Iterator[Path]:
     """
-    Generate all files under `path` whose paths are not excluded by the
-    `exclude` regex, but are included by the `include` regex.
-    Symbolic links pointing outside of the `root` directory are ignored.
-    `report` is where output about exclusions goes.
+    @cc 3
+    @desc return the list of files in the path, including/excluding from args
+    @arg path: the path to start with
+    @arg root: the root of the overall path
+    @arg include: a regex for including files
+    @arg exclude: a regex for excluding files
+    @ret an iterator of all files found in this path
     """
     assert root.is_absolute(), f"INTERNAL ERROR: `root` must be absolute but is {root}"
     for child in path.iterdir():
@@ -329,11 +522,10 @@ def get_python_files(
 @lru_cache()
 def find_project_root(sources: Iterable[str]) -> Path:
     """
-    Return a directory containing .git, .hg, or pyproject.toml.
-    That directory can be one of the directories passed in `srcs` or their
-    common parent.
-    If no directory in the tree contains a marker that would specify it's the
-    project root, the root of the file system is returned.
+    @cc 4
+    @desc find the project root of the sources supplied
+    @arg sources: a list of source files that we're parsing
+    @ret the path pointing to the root of the python project
     """
     if not sources:
         return Path("/").resolve()
@@ -354,7 +546,14 @@ def function_lint(
     class_rules: List[Rule] = None,
     function_rules: List[Rule] = None,
 ) -> List:
-    """function specific lint"""
+    """
+    @cc 8
+    @desc function specific lint
+    @arg function: the Function object to lint
+    @arg class_rules: the altered list of class rules to check
+    @arg function_rules: the altered list of function rules to check
+    @ret a list of issues found in this function
+    """
     if not class_rules:
         class_rules = CLASS_RULES
     if not function_rules:
@@ -366,6 +565,14 @@ def function_lint(
     for rule in function_rules:
         if rule.check(function):
             issues.append(Issue(rule, function))
+
+    # check for missing args
+    for arg in function.missing_args:
+        issues.append(Issue(MISSING_ARG, function, dict(arg=arg)))
+
+    # check for unexpected args
+    for arg in function.unexpected_args:
+        issues.append(Issue(UNEXPECTED_ARG, function, dict(arg=arg)))
 
     # check nested classes
     for sub_class in function.classes:
@@ -389,7 +596,14 @@ def function_lint(
 def class_lint(
     class_def: Class, class_rules: List[Rule] = None, function_rules: List[Rule] = None
 ) -> List:
-    """class specific lint"""
+    """
+    @cc 6
+    @desc class specific lint
+    @arg class_def: the Class object to lint
+    @arg class_rules: the altered list of class rules to check
+    @arg function_rules: the altered list of function rules to check
+    @ret a list of issues found in this class
+    """
     if not class_rules:
         class_rules = CLASS_RULES
     if not function_rules:
@@ -427,7 +641,15 @@ def lint(
     class_rules: List[Rule] = None,
     function_rules: List[Rule] = None,
 ) -> List:
-    """lint the given module, returning an exit code if any errors"""
+    """
+    @cc 7
+    @desc lint the given module!
+    @arg module: the module to lint
+    @arg module_rules: the altered list of module rules to check
+    @arg class_rules: the altered list of class rules to check
+    @arg function_rules: the altered list of function rules to check
+    @ret a list of issues found in this module
+    """
     if not module_rules:
         module_rules = MODULE_RULES
     if not class_rules:
@@ -484,6 +706,13 @@ def lint(
 )
 @click.option("-q", "--quiet", is_flag=True)
 @click.option("-v", "--verbose", is_flag=True)
+@click.option(
+    "--list-rules",
+    is_flag=True,
+    default=False,
+    is_eager=True,
+    help="list all active rules",
+)
 @click.version_option(version=__version__)
 @click.argument(
     "src",
@@ -502,9 +731,35 @@ def archives(
     exclude: str,
     format: str,
     disable: str,
+    list_rules: bool,
     src: Tuple[str],
 ) -> None:
-    """check if your code's archives are incomplete!"""
+    """
+    check if your code's archives are incomplete!
+    \f
+    @cc 9
+    @desc the main cli method for archives
+    @arg ctx: the click context arg
+    @arg quiet: the cli quiet flag
+    @arg verbose: the cli verbose flag
+    @arg include: a regex for what files to include
+    @arg exclude: a regex for what files to exclude
+    @arg format: a flag to specify output format for the issues
+    @arg disable: a comma separated disable list for rules
+    @arg list_rules: a flag to print the list of rules and exit
+    @arg src: a file or directory to scan for files to lint
+    @ret nothing
+    """
+    if list_rules:
+        for rule in [
+            *MODULE_RULES,
+            *CLASS_RULES,
+            *FUNCTION_RULES,
+            MISSING_ARG,
+            UNEXPECTED_ARG,
+        ]:
+            OUT(f"{rule.code}: {rule.desc}")
+        ctx.exit(0)
     try:
         include_regex = re.compile(include)
     except re.error:
@@ -538,7 +793,7 @@ def archives(
     class_rules = [x for x in CLASS_RULES if x.code not in disable_list]
     function_rules = [x for x in FUNCTION_RULES if x.code not in disable_list]
 
-    # do stuff with the files
+    # lint the files
     issues = []
     for file in sources:
         module = parse_module(str(file.absolute()))
@@ -555,6 +810,14 @@ def archives(
         obj = issue.obj
         rule = issue.rule
         module = obj if isinstance(obj, Module) else obj.module
+        extra_info = dict(name=obj.name)
+
+        # function specific info
+        if isinstance(obj, Function):
+            extra_info["cc"] = obj.complexity
+            if obj.doc:
+                extra_info["doc_cc"] = obj.doc.cc
+
         message = FORMATS[format].format_map(
             defaultdict(
                 str,
@@ -562,21 +825,37 @@ def archives(
                 line=issue.line,
                 column=issue.column,
                 code=rule.code,
-                text=rule.desc,
-                name=obj.name,
+                text=rule.desc.format_map(
+                    defaultdict(str, **extra_info, **issue.extra)
+                ),
             )
         )
         MSG(message)
+
+    if verbose:
+        if issues:
+            ERR(
+                f"\nImpossible! Perhaps your archives are incomplete?\n{len(issues)} issues found."
+            )
+        else:
+            MSG(f"Incredible! It appears that your archives are complete!")
 
     ctx.exit(0 if not issues else 1)
 
 
 def path_empty(src: Tuple[str], quiet: bool, verbose: bool, ctx: click.Context) -> None:
-    """Exit if there is no src provided for formatting"""
+    """
+    @cc 2
+    @desc Exit if there is no src provided for formatting
+    @arg src: a list of source files to lint
+    @arg quiet: if quiet mode is turned on
+    @arg verbose: if verbose mode is on
+    @arg ctx: the context of the click cli application
+    """
     if not src:
         if verbose or not quiet:
-            OUT("no path provided")
-            ctx.exit(0)
+            OUT("no paths provided!")
+        ctx.exit(2)
 
 
 if __name__ == "__main__":

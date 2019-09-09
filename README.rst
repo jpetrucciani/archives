@@ -24,13 +24,13 @@ archives: a new way to do python code documentation
 
 
 .. image:: https://i.kym-cdn.com/entries/icons/original/000/023/967/obiwan.jpg
-    :width: 50 %
+    :width: 100 %
     :alt: Perhaps the archives are incomplete
 
 Features
 --------
 
-- (coming soon) linter for docstrings
+- linter for docstrings (work in progress, but usable)
 - (coming soon) documentation generator
 
 Usage
@@ -41,7 +41,28 @@ Installation
 
 .. code-block:: bash
 
-   pip install archives
+  pip install archives
+
+Run the Linter
+^^^^^^^^^^^^^^
+.. code-block:: bash
+
+  # run archives (on itself!)
+  archives archives.py
+
+  #> archives.py:846:0: F104 function 'path_empty' missing @ret tag
+  #>
+  #> Impossible! Perhaps your archives are incomplete?
+  #> 1 issues found.
+
+  # list rules!
+  archives --list-rules
+
+  # disable rules!
+  archives --disable M100 .
+
+  # different formats for output! defaults to flake8
+  archives --format pylint archives.py
 
 
 Testing
@@ -63,5 +84,7 @@ Todo
 - more rules
 - better system for multi-check rules
 - more output formats
+- potentially spell-checking inside desc?
 - documentation generator
 - tests
+- ignore @ret if None return type
