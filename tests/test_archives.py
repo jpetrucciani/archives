@@ -1,6 +1,7 @@
 """
 tests for archives
 """
+import json
 from click.testing import CliRunner
 from archives import archives
 from typing import Callable, List
@@ -31,3 +32,19 @@ def test_list_rules():
     result = run(archives, ["--list-rules"])
     assert result.exit_code == 0
     assert "F101" in result.output
+
+
+def test_doc_gen():
+    """test doc flag"""
+    result = run(archives, ["--doc", "./extra/test.py"])
+    assert result.exit_code == 0
+    data = json.loads(result.output)
+    assert data
+    assert data["test.py"]["functions"][0]["returns"] == "Union[int, float, str]"
+
+
+def test_archives_self():
+    """test running archives on itself!"""
+    result = run(archives, ["./archives.py"])
+    assert result.exit_code == 0
+    assert "0 issues found" in result.output

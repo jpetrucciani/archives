@@ -1,22 +1,33 @@
 """
 archives
+@author jacobi petrucciani
 @desc perhaps the archives are incomplete?
 """
 import click
 import json
 import os
 import re
+import sys
 from collections import defaultdict
 from enum import Enum
 from functools import lru_cache, partial
 from pathlib import Path
 from radon.complexity import cc_visit_ast
 from radon.metrics import h_visit_ast
-from typed_ast import ast3
 from typing import Callable, Dict, Iterator, Iterable, List, Pattern, Set, Tuple, Union
 
 
-__version__ = "0.6"
+PY_VERSION = sys.version_info
+if PY_VERSION[0] >= 3 and PY_VERSION[1] >= 8:
+    # we should use the built in ast if python 3.8 or higher
+    # see https://github.com/python/typed_ast#python-38
+    import ast as ast3
+else:
+    # use the forked typed version
+    from typed_ast import ast3  # type: ignore
+
+
+__version__ = "0.7"
 DEFAULT_EXCLUDES_LIST = [
     r"\.eggs",
     r"\.git",
@@ -34,7 +45,7 @@ DEFAULT_EXCLUDES_LIST = [
 DEFAULT_EXCLUDES = r"/(" + "|".join(DEFAULT_EXCLUDES_LIST) + ")/"
 DEFAULT_INCLUDES = r"\.pyi?$"
 
-OUT = partial(click.secho, bold=True, err=True)
+
 ERR = partial(click.secho, fg="red", err=True)
 MSG = partial(click.secho, fg="blue", err=True)
 
@@ -52,28 +63,48 @@ class State:
         self.verbose = False
         self.quiet = False
         self.disable_list: List[str] = []
+        self.format = "flake8"
 
 
-def get_state():
+def get_state() -> State:
     """
-    @cc 1
+    @cc 2
     @desc gets the current state of the click app
     @ret the current click state object
     """
-    return click.get_current_context().ensure_object(State)
+    try:
+        return click.get_current_context().ensure_object(State)
+    except RuntimeError:
+        # this allows us to use archives programmatically
+        return State()
 
 
-def debug(data: Union[str, Dict, List]) -> None:
+def debug(data: Union[str, Dict, List], force: bool = False) -> None:
     """
     @cc 2
     @desc only prints if verbose mode is on, formatting nicely if list/dict
     @arg data: either a string to print, or a list/dict to print nicely
+    @arg force: force this debug to print, regardless of state/flags
     """
     state = get_state()
-    if state.verbose:
-        if isinstance(data, dict) or isinstance(data, list):
+    if state.verbose or force:
+        if isinstance(data, (dict, list)):
             data = json.dumps(data, indent=2, sort_keys=True, default=str)
         click.echo(click.style(data, fg="green"), err=True)
+
+
+def out(data: Union[str, Dict, List], force: bool = False) -> None:
+    """
+    @cc 2
+    @desc prints something to standard out
+    @arg data: either a string to print, or a list/dict to print nicely
+    @arg force: force this debug to print, regardless of state/flags
+    """
+    state = get_state()
+    if not state.quiet or force:
+        if isinstance(data, (dict, list)):
+            data = json.dumps(data, indent=2, sort_keys=True, default=str)
+        click.echo(click.style(data, fg="green"))
 
 
 # templates for archives tags
@@ -84,6 +115,7 @@ class Tag:
 
     CHAR = "@"
     EOL = r"(?:\n|\Z)"
+    AUTHOR = re.compile(rf"(?:{CHAR}author):?(?:\s+)(.+){EOL}")
     CC = re.compile(rf"(?:{CHAR}cc):?(?:\s+)([0-9]+){EOL}")
     DESC = re.compile(rf"(?:{CHAR}desc):?(?:\s+)(.+){EOL}")
     RETURN = re.compile(rf"(?:{CHAR}ret):?(?:\s+)(.+){EOL}")
@@ -175,6 +207,16 @@ def no_desc(obj: Union["Class", "Function", "Module"]) -> bool:
     return not obj.doc or not obj.doc.desc
 
 
+def no_author(module: "Module") -> bool:
+    """
+    @cc 1
+    @desc no author test
+    @arg module: a module to check
+    @ret true if the module has no @author tag
+    """
+    return not module.doc or not module.doc.author
+
+
 def no_cc(obj: "Function") -> bool:
     """
     @cc 1
@@ -202,14 +244,20 @@ def no_ret(function: "Function") -> bool:
     @arg function: a function to check
     @ret true if the function does not have a @ret tag
     """
-    returns_none = bool(
-        function.returns
-        and isinstance(function.returns, ast3.NameConstant)
-        and not function.returns.value
-    )
+    returns_none = bool(function.return_typed and not function.returns)
     if returns_none:
         return False
     return not function.doc or not function.doc.ret
+
+
+def no_ret_type(function: "Function") -> bool:
+    """
+    @cc 1
+    @desc no return type test
+    @arg function: a function to check
+    @ret true if the function does not have a declared return type
+    """
+    return not function.return_typed
 
 
 def unnecessary_ret(function: "Function") -> bool:
@@ -240,6 +288,7 @@ def nop(obj: Union["Class", "Function", "Module"]) -> bool:
 MODULE_RULES = [
     Rule("M100", "module '{name}' missing docstring", no_docstring),
     Rule("M101", "module '{name}' missing @desc tag", no_desc),
+    Rule("M102", "module '{name}' missing @author tag", no_author),
 ]
 CLASS_RULES = [
     Rule("C100", "class '{name}' missing docstring", no_docstring),
@@ -256,9 +305,39 @@ FUNCTION_RULES = [
     ),
     Rule("F104", "function '{name}' missing @ret tag", no_ret),
     Rule("F105", "function '{name}' has unnecessary @ret tag", unnecessary_ret),
+    Rule("F106", "function '{name}' has no return type", no_ret_type),
 ]
-MISSING_ARG = Rule("F106", "function '{name}' missing @arg for '{arg}'", nop)
-UNEXPECTED_ARG = Rule("F107", "function '{name}' unexpected @arg for '{arg}'", nop)
+MISSING_ARG = Rule("F107", "function '{name}' missing @arg for '{arg}'", nop)
+UNEXPECTED_ARG = Rule("F108", "function '{name}' unexpected @arg for '{arg}'", nop)
+
+
+def parse_elt(elt: Union[ast3.Name, ast3.Subscript]) -> str:
+    """
+    @cc 4
+    @desc a function to help parse a type annotation into a string
+    @arg elt: the element to attempt to parse
+    @ret the string version of this type annotation
+    """
+    if isinstance(elt, ast3.Name):
+        return elt.id
+    if isinstance(elt, ast3.NameConstant):
+        return elt.value
+    if isinstance(elt, ast3.Subscript):
+        value = elt.slice.value  # type: ignore
+        name = elt.value.id  # type: ignore
+        if isinstance(value, ast3.Str):
+            return f"{name}[{value.s}]"
+        if isinstance(value, ast3.Name):
+            return f"{name}[{value.id}]"
+        if isinstance(value, ast3.NameConstant):
+            return f"{name}[{value.value}]"
+        if isinstance(value, ast3.Tuple):
+            return "{}[{}]".format(
+                name, ", ".join(parse_elt(x) for x in value.elts)  # type: ignore
+            )
+        else:
+            debug(value)
+    return ""
 
 
 class Annotation:
@@ -266,25 +345,14 @@ class Annotation:
     @desc representation of a type annotation in python code
     """
 
-    def __init__(self, anno) -> None:
+    def __init__(self, anno: Union[ast3.Name, ast3.Subscript]) -> None:
         """
-        @cc 3
+        @cc 1
         @desc annotation constructor
-        @arg anno: an AST annotation object to parse
+        @arg anno: an AST annotation object to parse into a type
         """
-        self.type = ""
         self._annotation = anno
-        if isinstance(anno, ast3.Name):
-            self.type = anno.id
-        if isinstance(anno, ast3.Subscript):
-            value = anno.slice.value  # type: ignore
-            if isinstance(value, ast3.Name):
-                internal = value.id
-            else:
-                internal = ", ".join(
-                    [x.id if isinstance(x, ast3.Name) else x.s for x in value.elts]
-                )
-            self.type = f"{anno.value.id}[{internal}]"  # type: ignore
+        self.type = parse_elt(anno)
 
     def __str__(self) -> str:
         """
@@ -328,6 +396,7 @@ class Doc:
         desc = Tag.DESC.search(self.value)
         ret = Tag.RETURN.search(self.value)
         cc = Tag.CC.search(self.value)
+        author = Tag.AUTHOR.search(self.value)
 
         self.desc = desc[1] if desc else ""
         self.args = {
@@ -337,6 +406,7 @@ class Doc:
             x: y for x, y in Tag.LINK.findall(self.value) if x not in DEFAULT_ARG_IGNORE
         }
         self.ret = ret[1] if ret else ""
+        self.author = author[1] if author else ""
         self.cc = int(cc[1] if cc else -1)
 
     def __repr__(self) -> str:
@@ -345,7 +415,22 @@ class Doc:
         @desc repr dunder method
         @ret the repr representation of this Issue
         """
-        return f"<Doc>"
+        return f"<Doc[{self.desc}]>"
+
+    def serialize(self) -> Dict:
+        """
+        @cc 1
+        @desc serialize method for saving to json
+        @ret a dict of this arg's properties
+        """
+        return dict(
+            desc=self.desc,
+            ret=self.ret,
+            cc=self.cc,
+            author=self.author,
+            links=self.links,
+            args=self.args,
+        )
 
 
 class Arg:
@@ -364,10 +449,13 @@ class Arg:
         self.line = arg.lineno
         self.column = arg.col_offset
         self.name = arg.arg
+        self.type = None
+        self.type_line = -1
+        self.type_column = -1
         if arg.annotation:
             anno = arg.annotation
             self.typed = True
-            self.type = Annotation(anno)
+            self.type = Annotation(anno)  # type: ignore
             self.type_line = anno.lineno
             self.type_column = anno.col_offset
 
@@ -378,6 +466,20 @@ class Arg:
         @ret the repr representation of this Issue
         """
         return f"<Arg[{self.name}](line:{self.line})>"
+
+    def serialize(self) -> Dict:
+        """
+        @cc 1
+        @desc serialize method for saving to json
+        @ret a dict of this arg's properties
+        """
+        return dict(
+            name=self.name,
+            typed=self.typed,
+            line=self.line,
+            column=self.column,
+            type=str(self.type),
+        )
 
 
 class Function:
@@ -418,6 +520,7 @@ class Function:
         ]
         self.doc = None
         self.returns = None
+        self.return_typed = False
         self.missing_args: Set[str] = set()
         self.unexpected_args: Set[str] = set()
         arg_names = set(x.name for x in self.args if x.name not in DEFAULT_ARG_IGNORE)
@@ -429,11 +532,8 @@ class Function:
             self.missing_args = arg_names - doc_arg_names
             self.unexpected_args = doc_arg_names - arg_names
         if function.returns:
-            ret = function.returns
-            try:
-                self.returns = ret  # type: ignore
-            except AttributeError:
-                self.type = ret.value  # type: ignore
+            self.return_typed = True
+            self.returns = parse_elt(function.returns)  # type: ignore
 
         # complexity checks
         self._radon = cc_visit_ast(self._function)[0]
@@ -448,6 +548,22 @@ class Function:
         @ret the repr representation of this Issue
         """
         return f"<Function[{self.name}](line:{self.line})>"
+
+    def serialize(self) -> Dict:
+        """
+        @cc 1
+        @desc serialize method for saving to json
+        @ret a dict of this arg's properties
+        """
+        return dict(
+            name=self.name,
+            line=self.line,
+            column=self.column,
+            args=[x.serialize() for x in self.args],
+            complexity=self.complexity,
+            returns=self.returns,
+            doc=self.doc.serialize() if self.doc else None,
+        )
 
 
 class Class:
@@ -488,6 +604,21 @@ class Class:
         """
         return f"<Class[{self.name}](line:{self.line})>"
 
+    def serialize(self) -> Dict:
+        """
+        @cc 1
+        @desc serialize method for saving to json
+        @ret a dict of this arg's properties
+        """
+        return dict(
+            name=self.name,
+            line=self.line,
+            column=self.column,
+            functions=[x.serialize() for x in self.functions],
+            classes=[x.serialize() for x in self.classes],
+            doc=self.doc.serialize() if self.doc else None,
+        )
+
 
 class Module:
     """
@@ -501,6 +632,7 @@ class Module:
         @arg module: the AST module to parse
         @arg filename: the filename of the module we're parsing
         """
+        self.doc = None
         self.body = module.body
         self.path = filename
         self.name = self.path.split("/")[-1]
@@ -521,6 +653,19 @@ class Module:
         @ret the repr representation of this Issue
         """
         return f"<Module[{self.path}]>"
+
+    def serialize(self) -> Dict:
+        """
+        @cc 1
+        @desc serialize method for saving to json
+        @ret a dict of this arg's properties
+        """
+        return dict(
+            name=self.name,
+            functions=[x.serialize() for x in self.functions],
+            classes=[x.serialize() for x in self.classes],
+            doc=self.doc.serialize() if self.doc else None,
+        )
 
 
 def parse_module(filename: str) -> Module:
@@ -610,6 +755,7 @@ def function_lint(
     @arg function_rules: the altered list of function rules to check
     @ret a list of issues found in this function
     """
+    state = get_state()
     if not class_rules:
         class_rules = CLASS_RULES
     if not function_rules:
@@ -623,12 +769,14 @@ def function_lint(
             issues.append(Issue(rule, function))
 
     # check for missing args
-    for arg in function.missing_args:
-        issues.append(Issue(MISSING_ARG, function, dict(arg=arg)))
+    if MISSING_ARG.code not in state.disable_list:
+        for arg in function.missing_args:
+            issues.append(Issue(MISSING_ARG, function, dict(arg=arg)))
 
     # check for unexpected args
-    for arg in function.unexpected_args:
-        issues.append(Issue(UNEXPECTED_ARG, function, dict(arg=arg)))
+    if UNEXPECTED_ARG.code not in state.disable_list:
+        for arg in function.unexpected_args:
+            issues.append(Issue(UNEXPECTED_ARG, function, dict(arg=arg)))
 
     # check nested classes
     for sub_class in function.classes:
@@ -735,6 +883,87 @@ def lint(
     return issues
 
 
+def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
+    """
+    @cc 4
+    @desc perform an archives documentation lint
+    @arg ctx: the click context of the current run
+    @arg sources: the source files to lint
+    @arg state: the current click state
+    """
+
+    # apply disables
+    module_rules = [x for x in MODULE_RULES if x.code not in state.disable_list]
+    class_rules = [x for x in CLASS_RULES if x.code not in state.disable_list]
+    function_rules = [x for x in FUNCTION_RULES if x.code not in state.disable_list]
+
+    # lint the files
+    issues = []
+    for file in sources:
+        module = parse_module(str(file.absolute()))
+        issues.extend(
+            lint(
+                module,
+                module_rules=module_rules,
+                class_rules=class_rules,
+                function_rules=function_rules,
+            )
+        )
+
+    for issue in issues:
+        obj = issue.obj
+        rule = issue.rule
+        module = obj if isinstance(obj, Module) else obj.module
+        extra_info = dict(name=obj.name)
+
+        # function specific info
+        if isinstance(obj, Function):
+            extra_info["cc"] = obj.complexity
+            if obj.doc:
+                extra_info["doc_cc"] = obj.doc.cc
+
+        message = FORMATS[state.format].format_map(
+            defaultdict(
+                str,
+                path=module.path,
+                line=issue.line,
+                column=issue.column,
+                code=rule.code,
+                text=rule.desc.format_map(
+                    defaultdict(str, **extra_info, **issue.extra)
+                ),
+            )
+        )
+        MSG(message)
+    if not state.quiet:
+        if issues:
+            trailing_s = "s" if len(issues) != 1 else ""
+            ERR(f"\nImpossible! Perhaps your archives are incomplete?")
+            ERR(f"{len(issues)} issue{trailing_s} found")
+        else:
+            MSG(f"Incredible! It appears that your archives are complete!")
+            MSG(f"0 issues found")
+
+    ctx.exit(0 if not issues else 1)
+
+
+def archives_doc(ctx: click.Context, sources: Set[Path], state: State) -> None:
+    """
+    @cc 1
+    @desc perform archives documentation generation
+    @arg ctx: the click context of the current run
+    @arg sources: the source files to lint
+    @arg state: the current click state
+    """
+    modules = {
+        file.parts[-1]: parse_module(str(file.absolute())).serialize()
+        for file in sources
+    }
+
+    out(modules)
+    ctx.exit(0)
+
+
 @click.command(context_settings=dict(help_option_names=["-h", "--help"]))
 @click.option(
     "--include",
@@ -769,6 +998,12 @@ def lint(
     is_eager=True,
     help="list all active rules",
 )
+@click.option(
+    "--doc",
+    is_flag=True,
+    default=False,
+    help="generate documentation for the given sources",
+)
 @click.version_option(version=__version__)
 @click.argument(
     "src",
@@ -788,12 +1023,13 @@ def archives(
     format: str,
     disable: str,
     list_rules: bool,
+    doc: bool,
     src: Tuple[str],
 ) -> None:
     """
     check if your code's archives are incomplete!
     \f
-    @cc 9
+    @cc 7
     @desc the main cli method for archives
     @arg ctx: the click context arg
     @arg quiet: the cli quiet flag
@@ -803,11 +1039,13 @@ def archives(
     @arg format: a flag to specify output format for the issues
     @arg disable: a comma separated disable list for rules
     @arg list_rules: a flag to print the list of rules and exit
+    @arg doc: a flag to specify if we should generate docs instead of lint
     @arg src: a file or directory to scan for files to lint
     """
     state = ctx.ensure_object(State)
     state.verbose = verbose
     state.quiet = quiet
+    state.format = format
     state.disable_list = disable.split(",")
 
     if list_rules:
@@ -818,7 +1056,7 @@ def archives(
             MISSING_ARG,
             UNEXPECTED_ARG,
         ]:
-            OUT(f"{rule.code}: {rule.desc}")
+            out(f"{rule.code}: {rule.desc}")
         ctx.exit(0)
     try:
         include_regex = re.compile(include)
@@ -844,61 +1082,11 @@ def archives(
             ERR(f"invalid path: {source}")
     if not sources:
         if state.verbose or not state.quiet:
-            OUT("no python files are detected")
+            out("no python files are detected")
         ctx.exit(0)
-
-    # apply disables
-    module_rules = [x for x in MODULE_RULES if x.code not in state.disable_list]
-    class_rules = [x for x in CLASS_RULES if x.code not in state.disable_list]
-    function_rules = [x for x in FUNCTION_RULES if x.code not in state.disable_list]
-
-    # lint the files
-    issues = []
-    for file in sources:
-        module = parse_module(str(file.absolute()))
-        issues.extend(
-            lint(
-                module,
-                module_rules=module_rules,
-                class_rules=class_rules,
-                function_rules=function_rules,
-            )
-        )
-
-    for issue in issues:
-        obj = issue.obj
-        rule = issue.rule
-        module = obj if isinstance(obj, Module) else obj.module
-        extra_info = dict(name=obj.name)
-
-        # function specific info
-        if isinstance(obj, Function):
-            extra_info["cc"] = obj.complexity
-            if obj.doc:
-                extra_info["doc_cc"] = obj.doc.cc
-
-        message = FORMATS[format].format_map(
-            defaultdict(
-                str,
-                path=module.path,
-                line=issue.line,
-                column=issue.column,
-                code=rule.code,
-                text=rule.desc.format_map(
-                    defaultdict(str, **extra_info, **issue.extra)
-                ),
-            )
-        )
-        MSG(message)
-    if not quiet:
-        if issues:
-            trailing_s = "s" if len(issues) != 1 else ""
-            ERR(f"\nImpossible! Perhaps your archives are incomplete?")
-            ERR(f"{len(issues)} issue{trailing_s} found")
-        else:
-            MSG(f"Incredible! It appears that your archives are complete!")
-
-    ctx.exit(0 if not issues else 1)
+    if doc:
+        archives_doc(ctx, sources, state)
+    archives_lint(ctx, sources, state)
 
 
 def path_empty(src: Tuple[str], ctx: click.Context) -> None:

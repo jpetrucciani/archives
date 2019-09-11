@@ -92,4 +92,3 @@ Todo
 - potentially spell-checking inside desc?
 - documentation generator
 - tests
-- ignore @ret if None return type
