@@ -20,6 +20,11 @@ archives: a new way to do python code documentation
    :alt: Python 3.6+ supported
 
 
+.. image:: https://img.shields.io/badge/docstyle-archives-lightblue.svg
+   :target: https://github.com/jpetrucciani/archives
+   :alt: Documentation style: archives
+
+
 **archives** is a new style of python code documentation, as well as a linter for the documentation itself. It can help you ensure that your docstrings in your classes and functions stay up to date, and that they adequately explain their purpose, arguments, and return value.
 
 
