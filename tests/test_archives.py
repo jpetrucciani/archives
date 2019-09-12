@@ -45,6 +45,6 @@ def test_doc_gen():
 
 def test_archives_self():
     """test running archives on itself!"""
-    result = run(archives, ["./archives.py"])
+    result = run(archives, ["./archives/"])
     assert result.exit_code == 0
     assert "0 issues found" in result.output

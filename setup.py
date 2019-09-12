@@ -35,7 +35,7 @@ def find_version(*file_paths):
 
 setup(
     name=LIBRARY,
-    version=find_version("archives.py"),
+    version=find_version("archives", "globals.py"),
     description=("a new way to do python code documentation"),
     long_description=LONG_DESCRIPTION,
     author="Jacobi Petrucciani",
@@ -44,7 +44,6 @@ setup(
     download_url="https://github.com/jpetrucciani/{}.git".format(LIBRARY),
     license="MIT",
     packages=find_packages(),
-    py_modules=["archives"],
     install_requires=REQUIRED,
     classifiers=[
         "Programming Language :: Python :: 3",
@@ -54,6 +53,6 @@ setup(
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
     ],
-    entry_points={"console_scripts": ["archives=archives:archives"]},
+    entry_points={"console_scripts": ["archives=archives.archives:archives"]},
     zip_safe=False,
 )
