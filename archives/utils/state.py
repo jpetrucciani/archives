@@ -20,6 +20,9 @@ class State:
         self.quiet = False
         self.disable_list: List[str] = []
         self.format = "flake8"
+        self.module_rules: List = []
+        self.class_rules: List = []
+        self.function_rules: List = []
 
 
 def get_state() -> State:

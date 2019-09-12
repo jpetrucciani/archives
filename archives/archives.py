@@ -12,11 +12,12 @@ from archives.globals import (
     ast3,
     DEFAULT_INCLUDES,
     DEFAULT_EXCLUDES,
+    DEFAULT_ARG_IGNORE,
     FORMATS,
     __version__,
 )
 from archives.models.python import Class, Function, Module
-from archives.models.rules import Rule, Issue
+from archives.models.rules import Issue
 from archives.utils.state import get_state, State
 from archives.utils.files import find_project_root, path_empty, get_python_files
 from archives.utils.text import out, err, msg
@@ -26,6 +27,7 @@ from archives.rules import (
     FUNCTION_RULES,
     MISSING_ARG,
     UNEXPECTED_ARG,
+    UNTYPED_ARG,
 )
 
 
@@ -44,143 +46,96 @@ def parse_module(filename: str) -> Module:
     return Module(ast3.parse(contents), filename)  # type: ignore
 
 
-def function_lint(
-    function: Function,
-    class_rules: List[Rule] = None,
-    function_rules: List[Rule] = None,
-) -> List:
+def function_lint(function: Function) -> List:
     """
-    @cc 8
+    @cc 7
     @desc function specific lint
     @arg function: the Function object to lint
-    @arg class_rules: the altered list of class rules to check
-    @arg function_rules: the altered list of function rules to check
     @ret a list of issues found in this function
     """
     state = get_state()
-    if not class_rules:
-        class_rules = CLASS_RULES
-    if not function_rules:
-        function_rules = FUNCTION_RULES
-
     issues = []
 
     # check this function for rules
-    for rule in function_rules:
+    for rule in state.function_rules:
         if rule.check(function):
             issues.append(Issue(rule, function))
 
     # check for missing args
     if MISSING_ARG.code not in state.disable_list:
-        for arg in function.missing_args:
-            issues.append(Issue(MISSING_ARG, function, dict(arg=arg)))
+        for arg_name in function.missing_args:
+            issues.append(Issue(MISSING_ARG, function, dict(arg=arg_name)))
 
     # check for unexpected args
     if UNEXPECTED_ARG.code not in state.disable_list:
-        for arg in function.unexpected_args:
-            issues.append(Issue(UNEXPECTED_ARG, function, dict(arg=arg)))
+        for arg_name in function.unexpected_args:
+            issues.append(Issue(UNEXPECTED_ARG, function, dict(arg=arg_name)))
+
+    # check for untyped args
+    if UNTYPED_ARG.code not in state.disable_list:
+        for arg in [
+            x for x in function.args if not x.typed and x.name not in DEFAULT_ARG_IGNORE
+        ]:
+            issues.append(Issue(UNTYPED_ARG, function, dict(arg=arg)))
 
     # check nested classes
     for sub_class in function.classes:
-        issues.extend(
-            class_lint(
-                sub_class, class_rules=class_rules, function_rules=function_rules
-            )
-        )
+        issues.extend(class_lint(sub_class))
 
     # check all sub functions
     for sub_function in function.functions:
-        issues.extend(
-            function_lint(
-                sub_function, class_rules=class_rules, function_rules=function_rules
-            )
-        )
+        issues.extend(function_lint(sub_function))
 
     return issues
 
 
-def class_lint(
-    class_def: Class, class_rules: List[Rule] = None, function_rules: List[Rule] = None
-) -> List:
+def class_lint(class_def: Class) -> List:
     """
-    @cc 6
+    @cc 4
     @desc class specific lint
     @arg class_def: the Class object to lint
-    @arg class_rules: the altered list of class rules to check
-    @arg function_rules: the altered list of function rules to check
     @ret a list of issues found in this class
     """
-    if not class_rules:
-        class_rules = CLASS_RULES
-    if not function_rules:
-        function_rules = FUNCTION_RULES
 
+    state = get_state()
     issues = []
 
     # check this class for rules
-    for rule in class_rules:
+    for rule in state.class_rules:
         if rule.check(class_def):
             issues.append(Issue(rule, class_def))
 
     # check nested classes
     for sub_class in class_def.classes:
-        issues.extend(
-            class_lint(
-                sub_class, class_rules=class_rules, function_rules=function_rules
-            )
-        )
+        issues.extend(class_lint(sub_class))
 
     # check functions within this class
     for function in class_def.functions:
-        issues.extend(
-            function_lint(
-                function, class_rules=class_rules, function_rules=function_rules
-            )
-        )
+        issues.extend(function_lint(function))
 
     return issues
 
 
-def lint(
-    module: Module,
-    module_rules: List[Rule] = None,
-    class_rules: List[Rule] = None,
-    function_rules: List[Rule] = None,
-) -> List:
+def lint(module: Module) -> List:
     """
-    @cc 7
+    @cc 4
     @desc lint the given module!
     @arg module: the module to lint
-    @arg module_rules: the altered list of module rules to check
-    @arg class_rules: the altered list of class rules to check
-    @arg function_rules: the altered list of function rules to check
     @ret a list of issues found in this module
     """
-    if not module_rules:
-        module_rules = MODULE_RULES
-    if not class_rules:
-        class_rules = CLASS_RULES
-    if not function_rules:
-        function_rules = FUNCTION_RULES
-    issues = []
 
-    for rule in module_rules:
+    issues = []
+    state = get_state()
+
+    for rule in state.module_rules:
         if rule.check(module):
             issues.append(Issue(rule, module))
 
     for class_def in module.classes:
-        issues.extend(
-            class_lint(
-                class_def, class_rules=class_rules, function_rules=function_rules
-            )
-        )
+        issues.extend(class_lint(class_def))
 
     for function in module.functions:
-        issues.extend(
-            function_lint(
-                function, class_rules=class_rules, function_rules=function_rules
-            )
-        )
+        issues.extend(function_lint(function))
 
     return issues
 
@@ -194,23 +149,18 @@ def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
     @arg state: the current click state
     """
 
-    # apply disables
-    module_rules = [x for x in MODULE_RULES if x.code not in state.disable_list]
-    class_rules = [x for x in CLASS_RULES if x.code not in state.disable_list]
-    function_rules = [x for x in FUNCTION_RULES if x.code not in state.disable_list]
+    # apply disables to the global rule state
+    state.module_rules = [x for x in MODULE_RULES if x.code not in state.disable_list]
+    state.class_rules = [x for x in CLASS_RULES if x.code not in state.disable_list]
+    state.function_rules = [
+        x for x in FUNCTION_RULES if x.code not in state.disable_list
+    ]
 
     # lint the files
     issues = []
     for file in sources:
         module = parse_module(str(file.absolute()))
-        issues.extend(
-            lint(
-                module,
-                module_rules=module_rules,
-                class_rules=class_rules,
-                function_rules=function_rules,
-            )
-        )
+        issues.extend(lint(module))
 
     for issue in issues:
         obj = issue.obj
@@ -357,6 +307,7 @@ def archives(
             *FUNCTION_RULES,
             MISSING_ARG,
             UNEXPECTED_ARG,
+            UNTYPED_ARG,
         ]:
             out(f"{rule.code}: {rule.desc}")
         ctx.exit(0)

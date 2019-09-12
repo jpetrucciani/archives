@@ -128,5 +128,6 @@ FUNCTION_RULES = [
     Rule("F105", "function '{name}' has unnecessary @ret tag", unnecessary_ret),
     Rule("F106", "function '{name}' has no return type", no_ret_type),
 ]
-MISSING_ARG = Rule("F107", "function '{name}' missing @arg for '{arg}'", nop)
-UNEXPECTED_ARG = Rule("F108", "function '{name}' unexpected @arg for '{arg}'", nop)
+MISSING_ARG = Rule("A100", "function '{name}' missing @arg for '{arg}'", nop)
+UNEXPECTED_ARG = Rule("A101", "function '{name}' unexpected @arg for '{arg}'", nop)
+UNTYPED_ARG = Rule("A102", "function '{name}' has untyped arg '{arg}'", nop)
