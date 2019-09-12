@@ -3,6 +3,8 @@
 @desc file related helper utils
 """
 import click
+import io
+import tokenize
 from functools import lru_cache
 from pathlib import Path
 from typing import Iterator, Iterable, Pattern, Tuple
@@ -81,3 +83,21 @@ def path_empty(src: Tuple[str], ctx: click.Context) -> None:
         if state.verbose or not state.quiet:
             err("no paths provided!")
         ctx.exit(2)
+
+
+def decode_bytes(src: bytes) -> Tuple[str, str, str]:
+    """
+    @cc 2
+    @desc decode bytes passed in
+    @arg src: source data
+    @ret a tuple of (decoded_contents, encoding, newline)
+    """
+    srcbuf = io.BytesIO(src)
+    encoding, lines = tokenize.detect_encoding(srcbuf.readline)
+    if not lines:
+        return "", encoding, "\n"
+
+    newline = "\r\n" if b"\r\n" == lines[0][-2:] else "\n"
+    srcbuf.seek(0)
+    with io.TextIOWrapper(srcbuf, encoding) as tiow:
+        return tiow.read(), encoding, newline

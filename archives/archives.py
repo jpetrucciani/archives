@@ -5,6 +5,7 @@
 import click
 import os
 import re
+import sys
 from collections import defaultdict
 from pathlib import Path
 from typing import List, Set, Tuple
@@ -19,7 +20,12 @@ from archives.globals import (
 from archives.models.python import Class, Function, Module
 from archives.models.rules import Issue
 from archives.utils.state import get_state, State
-from archives.utils.files import find_project_root, path_empty, get_python_files
+from archives.utils.files import (
+    find_project_root,
+    path_empty,
+    get_python_files,
+    decode_bytes,
+)
 from archives.utils.text import out, err, msg
 from archives.rules import (
     MODULE_RULES,
@@ -38,11 +44,14 @@ def parse_module(filename: str) -> Module:
     @arg filename: the python file to parse
     @ret a parsed Module object of the given file
     """
-    if not os.path.isfile(filename):
-        raise Exception("file does not exist")
     contents = ""
-    with open(filename, encoding="utf-8", errors="replace") as file_to_read:
-        contents += file_to_read.read()
+    if str(filename)[-2:] == "/-":
+        contents, _, __ = decode_bytes(sys.stdin.buffer.read())
+    elif not os.path.isfile(filename):
+        raise Exception("file does not exist")
+    else:
+        with open(filename, encoding="utf-8", errors="replace") as file_to_read:
+            contents += file_to_read.read()
     return Module(ast3.parse(contents), filename)  # type: ignore
 
 
