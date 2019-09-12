@@ -35,7 +35,7 @@ archives: a new way to do python code documentation
 Features
 --------
 
-- linter for docstrings (work in progress, but usable)
+- linter for docstrings (work in progress, but usable!)
 - (coming soon) documentation generator
 
 Usage
