@@ -11,7 +11,7 @@ REQUIRED = ["click>=7.0", "typed-ast>=1.4.0", "radon>=3.0.3"]
 LIBRARY = "archives"
 
 
-with open("README.rst") as readme:
+with open("README.md") as readme:
     LONG_DESCRIPTION = readme.read()
 
 

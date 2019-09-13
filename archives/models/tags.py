@@ -8,6 +8,9 @@ from typing import Pattern
 
 CHAR = "@"
 EOL = r"(?:\n|\Z)"
+SPACE = r"(?:\s+)"
+ALNUM = r"([a-zA-Z0-9_]+)"
+ANY = r"(.+)"
 
 
 def base_tag(name: str) -> Pattern:
@@ -17,7 +20,7 @@ def base_tag(name: str) -> Pattern:
     @arg name: the name that will determine the tag
     @ret a compiled regex pattern for this tag
     """
-    return re.compile(rf"(?:{CHAR}{name}):?(?:\s+)(.+){EOL}")
+    return re.compile(rf"(?:{CHAR}{name}):?{SPACE}{ANY}{EOL}")
 
 
 def base_int_tag(name: str) -> Pattern:
@@ -27,7 +30,7 @@ def base_int_tag(name: str) -> Pattern:
     @arg name: the name that will determine the tag
     @ret a compiled regex pattern for this tag
     """
-    return re.compile(rf"(?:{CHAR}{name}):?(?:\s+)([0-9]+){EOL}")
+    return re.compile(rf"(?:{CHAR}{name}):?{SPACE}([0-9]+){EOL}")
 
 
 def base_arg_tag(name: str) -> Pattern:
@@ -37,7 +40,7 @@ def base_arg_tag(name: str) -> Pattern:
     @arg name: the name that will determine the tag
     @ret a compiled regex pattern for this tag
     """
-    return re.compile(rf"(?:{CHAR}{name})(?:\s+)([a-zA-Z0-9_]+):?(?:\s+)(.+){EOL}")
+    return re.compile(rf"(?:{CHAR}{name}){SPACE}{ALNUM}:?{SPACE}{ANY}{EOL}")
 
 
 class Tag:
