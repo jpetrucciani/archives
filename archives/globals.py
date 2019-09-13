@@ -6,7 +6,7 @@ import sys
 from typed_ast import ast3  # noqa
 
 
-__version__ = "0.10"
+__version__ = "0.11"
 
 
 PY_VERSION = sys.version_info
