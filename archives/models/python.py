@@ -284,6 +284,7 @@ class Class:
         self.name = cls.name
         self.module = module
         self.decorators = cls.decorator_list
+        self.doc = None
         self.functions = [
             Function(x, self.module)
             for x in self.body

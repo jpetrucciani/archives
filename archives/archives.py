@@ -199,11 +199,13 @@ def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
     if not state.quiet:
         if issues:
             trailing_s = "s" if len(issues) != 1 else ""
-            err(f"\nImpossible! Perhaps your archives are incomplete?")
-            err(f"{len(issues)} issue{trailing_s} found")
+            out(f"\nImpossible! Perhaps your archives are incomplete?", color="red")
+            out(f"{len(issues)} issue{trailing_s} found", color="red")
         else:
-            msg(f"Incredible! It appears that your archives are complete!")
-            msg(f"0 issues found")
+            out(
+                f"Incredible! It appears that your archives are complete!", color="blue"
+            )
+            out(f"0 issues found", color="blue")
 
     ctx.exit(0 if not issues else 1)
 
