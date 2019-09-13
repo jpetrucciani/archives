@@ -43,7 +43,7 @@ archives archives/
 # 1 issues found.
 
 # list tags!
-archives --list-tag
+archives --list-tags
 
 # @arg    describe an argument of a function
 # @author denote the author of a module/class/function
