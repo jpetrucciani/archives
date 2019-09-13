@@ -19,6 +19,7 @@ from archives.globals import (
 )
 from archives.models.python import Class, Function, Module
 from archives.models.rules import Issue
+from archives.models.tags import Tags, CHAR
 from archives.utils.state import get_state, State
 from archives.utils.files import (
     find_project_root,
@@ -65,13 +66,19 @@ def parse_module(filename: str) -> Module:
 
 def function_lint(function: Function) -> List:
     """
-    @cc 7
+    @cc 8
     @desc function specific lint
     @arg function: the Function object to lint
     @ret a list of issues found in this function
     """
     state = get_state()
     issues = []
+
+    state.function_count += 1
+
+    if function.doc and function.doc.no_lint:
+        state.function_nolint_count += 1
+        return []
 
     # check this function for rules
     for rule in state.function_rules:
@@ -108,7 +115,7 @@ def function_lint(function: Function) -> List:
 
 def class_lint(class_def: Class) -> List:
     """
-    @cc 4
+    @cc 5
     @desc class specific lint
     @arg class_def: the Class object to lint
     @ret a list of issues found in this class
@@ -116,6 +123,12 @@ def class_lint(class_def: Class) -> List:
 
     state = get_state()
     issues = []
+
+    state.class_count += 1
+
+    if class_def.doc and class_def.doc.no_lint:
+        state.class_nolint_count += 1
+        return []
 
     # check this class for rules
     for rule in state.class_rules:
@@ -135,7 +148,7 @@ def class_lint(class_def: Class) -> List:
 
 def lint(module: Module) -> List:
     """
-    @cc 4
+    @cc 5
     @desc lint the given module!
     @arg module: the module to lint
     @ret a list of issues found in this module
@@ -143,6 +156,12 @@ def lint(module: Module) -> List:
 
     issues = []
     state = get_state()
+
+    state.module_count += 1
+
+    if module.doc and module.doc.no_lint:
+        state.module_nolint_count += 1
+        return []
 
     for rule in state.module_rules:
         if rule.check(module):
@@ -215,6 +234,20 @@ def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
             )
             out(f"0 issues found", color="blue")
 
+        if state.stats:
+            _mods = state.module_count
+            _cls = state.class_count
+            _fns = state.function_count
+            out(
+                f"{_mods} module{'s' if _mods != 1 else ''} ({state.module_nolint_count} nolint)"
+            )
+            out(
+                f"{_cls} class{'es' if _cls != 1 else ''} ({state.class_nolint_count} nolint)"
+            )
+            out(
+                f"{_fns} function{'s' if _fns != 1 else ''} ({state.function_nolint_count} nolint)"
+            )
+
     ctx.exit(0 if not issues else 1)
 
 
@@ -270,6 +303,13 @@ def archives_doc(ctx: click.Context, sources: Set[Path], state: State) -> None:
     help="list all active rules",
 )
 @click.option(
+    "--list-tags",
+    is_flag=True,
+    default=False,
+    is_eager=True,
+    help="list all active tags",
+)
+@click.option(
     "--doc",
     is_flag=True,
     default=False,
@@ -280,6 +320,12 @@ def archives_doc(ctx: click.Context, sources: Set[Path], state: State) -> None:
     is_flag=True,
     default=False,
     help="ignore parsing exceptions (useful for ci)",
+)
+@click.option(
+    "--stats",
+    is_flag=True,
+    default=False,
+    help="print out additional stats for this linting run",
 )
 @click.version_option(version=__version__)
 @click.argument(
@@ -300,6 +346,8 @@ def archives(
     format: str,
     disable: str,
     list_rules: bool,
+    list_tags: bool,
+    stats: bool,
     ignore_exceptions: bool,
     doc: bool,
     src: Tuple[str],
@@ -307,7 +355,7 @@ def archives(
     """
     check if your code's archives are incomplete!
     \f
-    @cc 7
+    @cc 8
     @desc the main cli method for archives
     @arg ctx: the click context arg
     @arg quiet: the cli quiet flag
@@ -317,6 +365,8 @@ def archives(
     @arg format: a flag to specify output format for the issues
     @arg disable: a comma separated disable list for rules
     @arg list_rules: a flag to print the list of rules and exit
+    @arg list_tags: a flag to print the list of tags and their descriptions
+    @arg stats: a flag to print extra stats at the end of a lint run
     @arg ignore_exceptions: a flag to ignore parsing errors and exit 0
     @arg doc: a flag to specify if we should generate docs instead of lint
     @arg src: a file or directory to scan for files to lint
@@ -327,6 +377,7 @@ def archives(
     state.format = format
     state.disable_list = disable.split(",")
     state.ignore_exceptions = ignore_exceptions
+    state.stats = stats
 
     if list_rules:
         for rule in [
@@ -338,6 +389,10 @@ def archives(
             UNTYPED_ARG,
         ]:
             out(f"{rule.code}: {rule.desc}")
+        ctx.exit(0)
+    if list_tags:
+        for tag in Tags.all():
+            out(f"{CHAR}{tag.name}\t{tag.desc}")
         ctx.exit(0)
     try:
         include_regex = re.compile(include)

@@ -37,13 +37,29 @@ pip install archives
 # run archives (on itself!)
 archives archives/
 
-#> archives.py:846:0: F104 function 'path_empty' missing @ret tag
-#>
-#> Impossible! Perhaps your archives are incomplete?
-#> 1 issues found.
+# archives.py:846:0: F104 function 'path_empty' missing @ret tag
+#
+# Impossible! Perhaps your archives are incomplete?
+# 1 issues found.
+
+# list tags!
+archives --list-tag
+
+# @arg    describe an argument of a function
+# @author denote the author of a module/class/function
+# @cc     denote the complexity of a function
+# @desc   describe a module/class/function
+# @link   add a link to the generated documentation
+# @nodoc  disable this module/class/function in the documentation
+# @nolint disable archives linting in this module/class/function
+# @note   add a note to a module/class/function
+# @ret    describe the return value of a function
+# @todo   tag something as a todo
+# @warn   add a warning to a module/class/function
 
 # list rules!
 archives --list-rules
+
 
 # disable rules!
 archives --disable M100 .

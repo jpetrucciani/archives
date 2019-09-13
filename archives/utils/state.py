@@ -16,14 +16,30 @@ class State:
         @cc 1
         @desc state constructor
         """
+        # flags
         self.verbose = False
         self.quiet = False
+        self.ignore_exceptions = False
+        self.stats = False
+
+        # disables
         self.disable_list: List[str] = []
+
+        # output options
         self.format = "flake8"
         self.module_rules: List = []
         self.class_rules: List = []
         self.function_rules: List = []
-        self.ignore_exceptions = False
+
+        # object counters
+        self.module_count = 0
+        self.class_count = 0
+        self.function_count = 0
+
+        # object no lint counters
+        self.module_nolint_count = 0
+        self.class_nolint_count = 0
+        self.function_nolint_count = 0
 
 
 def get_state() -> State:

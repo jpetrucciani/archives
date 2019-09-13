@@ -8,7 +8,7 @@ from radon.metrics import h_visit_ast
 from typing import Dict, Set, Union
 from archives.globals import ast3, DEFAULT_ARG_IGNORE
 from archives.utils.text import debug
-from archives.models.tags import Tag
+from archives.models.tags import Tags
 
 
 def parse_elt(elt: Union[ast3.Name, ast3.Subscript]) -> str:
@@ -93,21 +93,29 @@ class Doc:
         @arg doc_type: the enum type of doc string this is used for
         """
         self.value = doc_string.value.s.strip()  # type: ignore
-        desc = Tag.DESC.search(self.value)
-        ret = Tag.RETURN.search(self.value)
-        cc = Tag.CC.search(self.value)
-        author = Tag.AUTHOR.search(self.value)
+        desc = Tags.DESC.regex.search(self.value)
+        ret = Tags.RETURN.regex.search(self.value)
+        cc = Tags.CC.regex.search(self.value)
+        author = Tags.AUTHOR.regex.search(self.value)
+        todo = Tags.TODO.regex.search(self.value)
+
+        self.no_lint = bool(Tags.NO_LINT.regex.search(self.value))
+        self.no_doc = bool(Tags.NO_DOC.regex.search(self.value))
+        self.todo = todo[1] if todo else ""
 
         self.desc = desc[1] if desc else ""
         self.args = {
-            x: y for x, y in Tag.ARG.findall(self.value) if x not in DEFAULT_ARG_IGNORE
+            x: y
+            for x, y in Tags.ARG.regex.findall(self.value)
+            if x not in DEFAULT_ARG_IGNORE
         }
-        self.links = {
-            x: y for x, y in Tag.LINK.findall(self.value) if x not in DEFAULT_ARG_IGNORE
-        }
+        self.links = {x: y for x, y in Tags.LINK.regex.findall(self.value)}
         self.ret = ret[1] if ret else ""
         self.author = author[1] if author else ""
         self.cc = int(cc[1] if cc else -1)
+
+        self.notes = {x: y for x, y in Tags.NOTE.regex.findall(self.value)}
+        self.warnings = {x: y for x, y in Tags.WARN.regex.findall(self.value)}
 
     def __repr__(self) -> str:
         """
@@ -130,6 +138,9 @@ class Doc:
             author=self.author,
             links=self.links,
             args=self.args,
+            notes=self.notes,
+            warnings=self.warnings,
+            no_lint=self.no_lint,
         )
 
 
@@ -143,7 +154,6 @@ class Arg:
         @cc 2
         @desc easier to use version of the ast arg def
         @arg arg: the AST arg object to parse
-
         """
         self.typed = False
         self.line = arg.lineno
@@ -256,10 +266,13 @@ class Function:
         @ret a dict of this arg's properties
         """
         return dict(
+            author=self.doc.author if self.doc else None,
             name=self.name,
             line=self.line,
             column=self.column,
             args=[x.serialize() for x in self.args],
+            functions=[x.serialize() for x in self.functions],
+            classes=[x.serialize() for x in self.classes],
             complexity=self.complexity,
             returns=self.returns,
             doc=self.doc.serialize() if self.doc else None,
@@ -275,7 +288,7 @@ class Class:
         """
         @cc 2
         @desc easier to use version of a class
-        @arg cls: the AST classDef to parse
+        @arg cls: the AST ClassDef to parse
         @arg module: the module this class resides in
         """
         self.body = cls.body
@@ -312,6 +325,7 @@ class Class:
         @ret a dict of this arg's properties
         """
         return dict(
+            author=self.doc.author if self.doc else None,
             name=self.name,
             line=self.line,
             column=self.column,
@@ -362,6 +376,7 @@ class Module:
         @ret a dict of this arg's properties
         """
         return dict(
+            author=self.doc.author if self.doc else None,
             name=self.name,
             functions=[x.serialize() for x in self.functions],
             classes=[x.serialize() for x in self.classes],
