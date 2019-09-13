@@ -38,6 +38,7 @@ setup(
     version=find_version("archives", "globals.py"),
     description=("a new way to do python code documentation"),
     long_description=LONG_DESCRIPTION,
+    long_description_content_type="text/markdown",
     author="Jacobi Petrucciani",
     author_email="jacobi@mimirhq.com",
     url="https://github.com/jpetrucciani/{}.git".format(LIBRARY),
