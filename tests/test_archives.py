@@ -43,6 +43,14 @@ def test_doc_gen():
     assert data["test.py"]["functions"][0]["returns"] == "Union[int, float, str]"
 
 
+def test_no_lint():
+    """test doc flag"""
+    result = run(archives, ["./extra/no_lint.py"])
+    assert result.exit_code == 1
+    assert "Impossible! Perhaps your archives are incomplete?" in result.output
+    assert "1 issue found" in result.output
+
+
 def test_archives_self():
     """test running archives on itself!"""
     result = run(archives, ["./archives/"])

@@ -114,8 +114,8 @@ class Doc:
         self.author = author[1] if author else ""
         self.cc = int(cc[1] if cc else -1)
 
-        self.notes = {x: y for x, y in Tags.NOTE.regex.findall(self.value)}
-        self.warnings = {x: y for x, y in Tags.WARN.regex.findall(self.value)}
+        self.notes = [x for x in Tags.NOTE.regex.findall(self.value)]
+        self.warnings = [x for x in Tags.WARN.regex.findall(self.value)]
 
     def __repr__(self) -> str:
         """
