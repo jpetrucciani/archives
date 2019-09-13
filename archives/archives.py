@@ -26,7 +26,7 @@ from archives.utils.files import (
     get_python_files,
     decode_bytes,
 )
-from archives.utils.text import out, err, msg
+from archives.utils.text import out, err
 from archives.rules import (
     MODULE_RULES,
     CLASS_RULES,
@@ -39,11 +39,12 @@ from archives.rules import (
 
 def parse_module(filename: str) -> Module:
     """
-    @cc 2
+    @cc 3
     @desc parse a module into our archives' models
     @arg filename: the python file to parse
     @ret a parsed Module object of the given file
     """
+    state = get_state()
     contents = ""
     if str(filename)[-2:] == "/-":
         contents, _, __ = decode_bytes(sys.stdin.buffer.read())
@@ -52,7 +53,14 @@ def parse_module(filename: str) -> Module:
     else:
         with open(filename, encoding="utf-8", errors="replace") as file_to_read:
             contents += file_to_read.read()
-    return Module(ast3.parse(contents), filename)  # type: ignore
+    try:
+        ast = ast3.parse(contents)
+    except:  # noqa
+        out("error in parsing", color="red")
+        if state.ignore_exceptions:
+            sys.exit(0)
+    module = Module(ast, filename)  # type: ignore
+    return module
 
 
 def function_lint(function: Function) -> List:
@@ -195,7 +203,7 @@ def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
                 ),
             )
         )
-        msg(message)
+        out(message, color="blue")
     if not state.quiet:
         if issues:
             trailing_s = "s" if len(issues) != 1 else ""
@@ -267,6 +275,12 @@ def archives_doc(ctx: click.Context, sources: Set[Path], state: State) -> None:
     default=False,
     help="generate documentation for the given sources",
 )
+@click.option(
+    "--ignore-exceptions",
+    is_flag=True,
+    default=False,
+    help="ignore parsing exceptions (useful for ci)",
+)
 @click.version_option(version=__version__)
 @click.argument(
     "src",
@@ -286,6 +300,7 @@ def archives(
     format: str,
     disable: str,
     list_rules: bool,
+    ignore_exceptions: bool,
     doc: bool,
     src: Tuple[str],
 ) -> None:
@@ -302,6 +317,7 @@ def archives(
     @arg format: a flag to specify output format for the issues
     @arg disable: a comma separated disable list for rules
     @arg list_rules: a flag to print the list of rules and exit
+    @arg ignore_exceptions: a flag to ignore parsing errors and exit 0
     @arg doc: a flag to specify if we should generate docs instead of lint
     @arg src: a file or directory to scan for files to lint
     """
@@ -310,6 +326,7 @@ def archives(
     state.quiet = quiet
     state.format = format
     state.disable_list = disable.split(",")
+    state.ignore_exceptions = ignore_exceptions
 
     if list_rules:
         for rule in [

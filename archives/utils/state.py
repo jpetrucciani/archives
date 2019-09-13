@@ -23,6 +23,7 @@ class State:
         self.module_rules: List = []
         self.class_rules: List = []
         self.function_rules: List = []
+        self.ignore_exceptions = False
 
 
 def get_state() -> State:
