@@ -92,6 +92,7 @@ class Doc:
         @arg doc_string: the expression used to represent a docstring
         @arg doc_type: the enum type of doc string this is used for
         """
+        self._doc = doc_string
         self.value = doc_string.value.s.strip()  # type: ignore
         desc = Tags.DESC.regex.search(self.value)
         ret = Tags.RETURN.regex.search(self.value)
