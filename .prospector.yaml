@@ -7,6 +7,7 @@ ignore-patterns:
   - (^|/)\..+
   - .*\.html
   - docs/.*
+  - extra/.*
   - tmp\.py
 
 pylint:
@@ -22,9 +23,9 @@ pylint:
     - wrong-import-order
 
   options:
-    max-args: 10
+    max-args: 20
     max-locals: 100
-    max-returns: 6
+    max-returns: 10
     max-branches: 50
     max-statements: 180
     max-parents: 10
@@ -67,11 +68,13 @@ pep257:
     - D105
     - D107
     - D200
+    - D202
     - D203
     - D205
     - D212
     - D204
     - D300
+    - D301
     - D400
     - D401
     - D404

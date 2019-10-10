@@ -35,8 +35,7 @@ def parse_elt(elt: Union[ast3.Name, ast3.Subscript]) -> str:
             return "{}[{}]".format(
                 name, ", ".join(parse_elt(x) for x in value.elts)  # type: ignore
             )
-        else:
-            debug(value)
+        debug(value)
     return ""
 
 
@@ -96,7 +95,7 @@ class Doc:
         self.value = doc_string.value.s.strip()  # type: ignore
         desc = Tags.DESC.regex.search(self.value)
         ret = Tags.RETURN.regex.search(self.value)
-        cc = Tags.CC.regex.search(self.value)
+        cc = Tags.CC.regex.search(self.value)  # pylint: disable=invalid-name
         author = Tags.AUTHOR.regex.search(self.value)
         todo = Tags.TODO.regex.search(self.value)
 
@@ -113,7 +112,7 @@ class Doc:
         self.links = {x: y for x, y in Tags.LINK.regex.findall(self.value)}
         self.ret = ret[1] if ret else ""
         self.author = author[1] if author else ""
-        self.cc = int(cc[1] if cc else -1)
+        self.cc = int(cc[1] if cc else -1)  # pylint: disable=invalid-name
 
         self.notes = [x for x in Tags.NOTE.regex.findall(self.value)]
         self.warnings = [x for x in Tags.WARN.regex.findall(self.value)]
