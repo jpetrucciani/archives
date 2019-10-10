@@ -343,7 +343,7 @@ def archives(
     verbose: bool,
     include: str,
     exclude: str,
-    format: str,
+    format: str,  # pylint: disable=redefined-builtin
     disable: str,
     list_rules: bool,
     list_tags: bool,

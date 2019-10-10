@@ -68,7 +68,7 @@ def find_project_root(sources: Iterable[str]) -> Path:
         if (directory / ".git").is_dir():
             return directory
 
-    return directory
+    return directory  # pylint: disable=undefined-loop-variable
 
 
 def path_empty(src: Tuple[str], ctx: click.Context) -> None:
@@ -97,7 +97,7 @@ def decode_bytes(src: bytes) -> Tuple[str, str, str]:
     if not lines:
         return "", encoding, "\n"
 
-    newline = "\r\n" if b"\r\n" == lines[0][-2:] else "\n"
+    newline = "\r\n" if lines[0][-2:] == b"\r\n" else "\n"
     srcbuf.seek(0)
     with io.TextIOWrapper(srcbuf, encoding) as tiow:
         return tiow.read(), encoding, newline
