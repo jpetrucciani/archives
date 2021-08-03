@@ -3,20 +3,20 @@
 @desc global vars for archives
 """
 import sys
-from typed_ast import ast3  # noqa
 
 
-__version__ = "0.12"
+__version__ = "VERSION"
+PY_VER = sys.version_info
+IS_38 = PY_VER[0] >= 3 and PY_VER[1] >= 8
 
 
-PY_VERSION = sys.version_info
-# if PY_VERSION[0] >= 3 and PY_VERSION[1] >= 8:
-#     # we should use the built in ast if python 3.8 or higher
-#     # see https://github.com/python/typed_ast#python-38
-#     import ast as ast3
-# else:
-#     # use the forked typed version
-#     from typed_ast import ast3  # type: ignore # noqa
+if IS_38:
+    # we should use the built in ast if python 3.8 or higher
+    # see https://github.com/python/typed_ast#python-38
+    import ast as ast3
+else:
+    # use the forked typed version
+    from typed_ast import ast3  # type: ignore # noqa
 
 
 DEFAULT_EXCLUDES_LIST = [

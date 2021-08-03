@@ -33,7 +33,7 @@ class Issue:
         self, rule: Rule, obj: Union[Class, Function, Module], extra: Dict = None
     ) -> None:
         """
-        @cc 1
+        @cc 4
         @desc constructor for issue
         @arg rule: an instance of the rule being broken
         @arg obj: either a class, function, or module that breaks the rule

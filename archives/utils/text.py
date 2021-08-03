@@ -10,7 +10,7 @@ from archives.utils.state import get_state
 
 def debug(data: Union[str, Dict, List], force: bool = False) -> None:
     """
-    @cc 2
+    @cc 4
     @desc only prints if verbose mode is on, formatting nicely if list/dict
     @arg data: either a string to print, or a list/dict to print nicely
     @arg force: force this debug to print, regardless of state/flags
@@ -26,7 +26,7 @@ def out(
     data: Union[str, Dict, List], force: bool = False, color: str = "green"
 ) -> None:
     """
-    @cc 2
+    @cc 4
     @desc prints something to standard out
     @arg data: either a string to print, or a list/dict to print nicely
     @arg color: what color to print in
@@ -41,7 +41,7 @@ def out(
 
 def err(data: Union[str, Dict, List]) -> None:
     """
-    @cc 2
+    @cc 3
     @desc prints something to standard error
     @arg data: either a string to print, or a list/dict to print nicely
     """
@@ -54,7 +54,7 @@ def err(data: Union[str, Dict, List]) -> None:
 
 def msg(data: Union[str, Dict, List]) -> None:
     """
-    @cc 2
+    @cc 3
     @desc prints something to standard out in blue
     @arg data: either a string to print, or a list/dict to print nicely
     """

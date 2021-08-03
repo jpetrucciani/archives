@@ -1,6 +1,5 @@
 # archives: a new way to do python code documentation
 
-[![image](https://travis-ci.org/jpetrucciani/archives.svg?branch=master)](https://travis-ci.org/jpetrucciani/archives)
 [![PyPI
 version](https://badge.fury.io/py/archives.svg)](https://badge.fury.io/py/archives)
 [![Code style:
@@ -27,13 +26,13 @@ incomplete](https://i.kym-cdn.com/entries/icons/original/000/023/967/obiwan.jpg)
 
 ### Installation
 
-``` bash
+```bash
 pip install archives
 ```
 
 ### Run the Linter
 
-``` bash
+```bash
 # run archives (on itself!)
 archives archives/
 
@@ -72,7 +71,7 @@ archives --format pylint archives.py
 
 Tests can be run with tox\!
 
-``` bash
+```bash
 # run tests
 tox
 

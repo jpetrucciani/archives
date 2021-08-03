@@ -20,7 +20,7 @@ def no_docstring(obj: Union[Class, Function, Module]) -> bool:
 
 def no_desc(obj: Union[Class, Function, Module]) -> bool:
     """
-    @cc 1
+    @cc 2
     @desc no description test
     @arg obj: a class, function, or module to check
     @ret true if the obj has no @desc tag
@@ -30,7 +30,7 @@ def no_desc(obj: Union[Class, Function, Module]) -> bool:
 
 def no_author(module: "Module") -> bool:
     """
-    @cc 1
+    @cc 2
     @desc no author test
     @arg module: a module to check
     @ret true if the module has no @author tag
@@ -40,7 +40,7 @@ def no_author(module: "Module") -> bool:
 
 def no_cc(obj: "Function") -> bool:
     """
-    @cc 1
+    @cc 2
     @desc no cyclomatic complexity test
     @arg obj: a function to check
     @ret true if the function does not have a @cc tag
@@ -50,7 +50,7 @@ def no_cc(obj: "Function") -> bool:
 
 def wrong_cc(obj: "Function") -> bool:
     """
-    @cc 1
+    @cc 3
     @desc incorrect cyclomatic complexity test
     @arg obj: a function to check
     @ret true if the function has an incorrect @cc tag
@@ -60,7 +60,7 @@ def wrong_cc(obj: "Function") -> bool:
 
 def no_ret(function: "Function") -> bool:
     """
-    @cc 2
+    @cc 4
     @desc no return tag test
     @arg function: a function to check
     @ret true if the function does not have a @ret tag
@@ -83,7 +83,7 @@ def no_ret_type(function: "Function") -> bool:
 
 def unnecessary_ret(function: "Function") -> bool:
     """
-    @cc 1
+    @cc 5
     @desc unnecessary return tag test
     @arg function: a function to check
     @ret true if the function has a @ret tag but doesn't need one
@@ -121,7 +121,7 @@ FUNCTION_RULES = [
     Rule("F102", "function '{name}' missing @cc tag (cc: {cc})", no_cc),
     Rule(
         "F103",
-        "function '{name}' mismatched @cc tag ({doc_cc}, expected {cc})",
+        "function '{name}' mismatched @cc tag (tag is {doc_cc}, calculated {cc})",
         wrong_cc,
     ),
     Rule("F104", "function '{name}' missing @ret tag", no_ret),

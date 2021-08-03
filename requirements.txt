@@ -1,0 +1,4 @@
+click>=7.0
+lizard>=1.16.6
+radon>=3.0.3
+typed-ast>=1.4.0

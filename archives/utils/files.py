@@ -16,7 +16,7 @@ def get_python_files(
     path: Path, root: Path, include: Pattern[str], exclude: Pattern[str]
 ) -> Iterator[Path]:
     """
-    @cc 3
+    @cc 11
     @desc return the list of files in the path, including/excluding from args
     @arg path: the path to start with
     @arg root: the root of the overall path
@@ -52,7 +52,7 @@ def get_python_files(
 @lru_cache()
 def find_project_root(sources: Iterable[str]) -> Path:
     """
-    @cc 4
+    @cc 6
     @desc find the project root of the sources supplied
     @arg sources: a list of source files that we're parsing
     @ret the path pointing to the root of the python project
@@ -73,7 +73,7 @@ def find_project_root(sources: Iterable[str]) -> Path:
 
 def path_empty(src: Tuple[str], ctx: click.Context) -> None:
     """
-    @cc 2
+    @cc 4
     @desc Exit if there is no src provided for formatting
     @arg src: a list of source files to lint
     @arg ctx: the context of the click cli application
@@ -87,7 +87,7 @@ def path_empty(src: Tuple[str], ctx: click.Context) -> None:
 
 def decode_bytes(src: bytes) -> Tuple[str, str, str]:
     """
-    @cc 2
+    @cc 3
     @desc decode bytes passed in
     @arg src: source data
     @ret a tuple of (decoded_contents, encoding, newline)

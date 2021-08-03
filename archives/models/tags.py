@@ -85,15 +85,15 @@ class Tags:
     all_types = "module/class/function"
 
     # general tags
-    ARG = arg_tag("arg", f"describe an argument of a function")
+    ARG = arg_tag("arg", "describe an argument of a function")
     AUTHOR = str_tag("author", f"denote the author of a {all_types}")
-    CC = int_tag("cc", f"denote the complexity of a function")
+    CC = int_tag("cc", "denote the complexity of a function")
     DESC = str_tag("desc", f"describe a {all_types}")
-    RETURN = str_tag("ret", f"describe the return value of a function")
-    TODO = str_tag("todo", f"tag something as a todo")
+    RETURN = str_tag("ret", "describe the return value of a function")
+    TODO = str_tag("todo", "tag something as a todo")
 
     # documentation tags
-    LINK = arg_tag("link", f"add a link to the generated documentation")
+    LINK = arg_tag("link", "add a link to the generated documentation")
     NOTE = str_tag("note", f"add a note to a {all_types}")
     WARN = str_tag("warn", f"add a warning to a {all_types}")
 
@@ -104,7 +104,7 @@ class Tags:
     @classmethod
     def all(cls) -> List[Tag]:
         """
-        @cc 1
+        @cc 4
         @desc get all tags in this enum
         @ret a list of the tag objects
         """

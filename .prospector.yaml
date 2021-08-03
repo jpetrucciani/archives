@@ -21,6 +21,7 @@ pylint:
     - no-self-use
     - unused-argument
     - wrong-import-order
+    - unsubscriptable-object
 
   options:
     max-args: 20
@@ -44,6 +45,7 @@ pep8:
     - N802
     - N807
     - W503
+    - E203
   options:
     max-line-length: 100
     single-line-if-stmt: n

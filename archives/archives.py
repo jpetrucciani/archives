@@ -40,7 +40,7 @@ from archives.rules import (
 
 def parse_module(filename: str) -> Module:
     """
-    @cc 3
+    @cc 5
     @desc parse a module into our archives' models
     @arg filename: the python file to parse
     @ret a parsed Module object of the given file
@@ -66,7 +66,7 @@ def parse_module(filename: str) -> Module:
 
 def function_lint(function: Function) -> List:
     """
-    @cc 8
+    @cc 16
     @desc function specific lint
     @arg function: the Function object to lint
     @ret a list of issues found in this function
@@ -115,7 +115,7 @@ def function_lint(function: Function) -> List:
 
 def class_lint(class_def: Class) -> List:
     """
-    @cc 5
+    @cc 7
     @desc class specific lint
     @arg class_def: the Class object to lint
     @ret a list of issues found in this class
@@ -148,7 +148,7 @@ def class_lint(class_def: Class) -> List:
 
 def lint(module: Module) -> List:
     """
-    @cc 5
+    @cc 7
     @desc lint the given module!
     @arg module: the module to lint
     @ret a list of issues found in this module
@@ -178,7 +178,7 @@ def lint(module: Module) -> List:
 
 def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
     """
-    @cc 4
+    @cc 20
     @desc perform an archives documentation lint
     @arg ctx: the click context of the current run
     @arg sources: the source files to lint
@@ -226,13 +226,11 @@ def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
     if not state.quiet:
         if issues:
             trailing_s = "s" if len(issues) != 1 else ""
-            out(f"\nImpossible! Perhaps your archives are incomplete?", color="red")
+            out("\nImpossible! Perhaps your archives are incomplete?", color="red")
             out(f"{len(issues)} issue{trailing_s} found", color="red")
         else:
-            out(
-                f"Incredible! It appears that your archives are complete!", color="blue"
-            )
-            out(f"0 issues found", color="blue")
+            out("Incredible! It appears that your archives are complete!", color="blue")
+            out("0 issues found", color="blue")
 
         if state.stats:
             _mods = state.module_count
@@ -253,7 +251,7 @@ def archives_lint(ctx: click.Context, sources: Set[Path], state: State) -> None:
 
 def archives_doc(ctx: click.Context, sources: Set[Path], state: State) -> None:
     """
-    @cc 1
+    @cc 2
     @desc perform archives documentation generation
     @arg ctx: the click context of the current run
     @arg sources: the source files to lint
@@ -285,7 +283,7 @@ def archives_doc(ctx: click.Context, sources: Set[Path], state: State) -> None:
 )
 @click.option(
     "--format",
-    type=click.Choice(FORMATS.keys()),
+    type=click.Choice(list(FORMATS.keys())),
     default="flake8",
     show_default=True,
     help="format of issue output messages",
@@ -355,7 +353,7 @@ def archives(
     """
     check if your code's archives are incomplete!
     \f
-    @cc 8
+    @cc 15
     @desc the main cli method for archives
     @arg ctx: the click context arg
     @arg quiet: the cli quiet flag

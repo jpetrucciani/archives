@@ -6,14 +6,14 @@ from enum import Enum
 from radon.complexity import cc_visit_ast
 from radon.metrics import h_visit_ast
 from typing import Dict, Set, Union
-from archives.globals import ast3, DEFAULT_ARG_IGNORE
+from archives.globals import ast3, DEFAULT_ARG_IGNORE, IS_38
 from archives.utils.text import debug
 from archives.models.tags import Tags
 
 
 def parse_elt(elt: Union[ast3.Name, ast3.Subscript]) -> str:
     """
-    @cc 4
+    @cc 10
     @desc a function to help parse a type annotation into a string
     @arg elt: the element to attempt to parse
     @ret the string version of this type annotation
@@ -21,9 +21,9 @@ def parse_elt(elt: Union[ast3.Name, ast3.Subscript]) -> str:
     if isinstance(elt, ast3.Name):
         return elt.id
     if isinstance(elt, ast3.NameConstant):
-        return elt.value
+        return elt.value  # type: ignore
     if isinstance(elt, ast3.Subscript):
-        value = elt.slice.value  # type: ignore
+        value = elt.slice if IS_38 else elt.slice.value  # type: ignore
         name = elt.value.id  # type: ignore
         if isinstance(value, ast3.Str):
             return f"{name}[{value.s}]"
@@ -86,7 +86,7 @@ class Doc:
 
     def __init__(self, doc_string: ast3.Expr, doc_type: Type) -> None:
         """
-        @cc 1
+        @cc 11
         @desc easier to use version of the ast docstring def
         @arg doc_string: the expression used to represent a docstring
         @arg doc_type: the enum type of doc string this is used for
@@ -199,7 +199,7 @@ class Function:
 
     def __init__(self, function: ast3.FunctionDef, module: "Module") -> None:
         """
-        @cc 3
+        @cc 14
         @desc easier to use version of the ast function def
         @arg function: the AST functionDef to parse
         @arg module: the module this function resides in
@@ -261,7 +261,7 @@ class Function:
 
     def serialize(self) -> Dict:
         """
-        @cc 1
+        @cc 6
         @desc serialize method for saving to json
         @ret a dict of this arg's properties
         """
@@ -286,7 +286,7 @@ class Class:
 
     def __init__(self, cls: ast3.ClassDef, module: "Module") -> None:
         """
-        @cc 2
+        @cc 6
         @desc easier to use version of a class
         @arg cls: the AST ClassDef to parse
         @arg module: the module this class resides in
@@ -320,7 +320,7 @@ class Class:
 
     def serialize(self) -> Dict:
         """
-        @cc 1
+        @cc 5
         @desc serialize method for saving to json
         @ret a dict of this arg's properties
         """
@@ -342,7 +342,7 @@ class Module:
 
     def __init__(self, module: ast3.Module, filename: str) -> None:
         """
-        @cc 2
+        @cc 6
         @desc easier to use version of a module
         @arg module: the AST module to parse
         @arg filename: the filename of the module we're parsing
@@ -371,7 +371,7 @@ class Module:
 
     def serialize(self) -> Dict:
         """
-        @cc 1
+        @cc 5
         @desc serialize method for saving to json
         @ret a dict of this arg's properties
         """
