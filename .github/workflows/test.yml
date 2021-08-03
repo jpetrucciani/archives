@@ -45,6 +45,6 @@ jobs:
       - name: install requirements
         run: |
           pip install -r requirements.txt
-          pip install -r requirements.dev.txt
+          pip install -r requirements-dev.txt
       - name: run Tox
         run: tox -e py
