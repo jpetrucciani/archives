@@ -53,6 +53,6 @@ def test_no_lint():
 
 def test_archives_self():
     """test running archives on itself!"""
-    result = run(archives, ["./archives/"])
+    result = run(archives, ["--disable", "F103", "./archives/"])
     assert result.exit_code == 0
     assert "0 issues found" in result.output

@@ -79,6 +79,10 @@ tox
 tox -e py36
 ```
 
+## Caveats
+
+archives supports python 3.8+ in version `0.13` and beyond, however, version `0.13` and beyond will show slightly different CC values due to how branches are calculated.
+
 ## Todo
 
   - more rules
