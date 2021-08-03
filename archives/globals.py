@@ -13,7 +13,7 @@ IS_38 = PY_VER[0] >= 3 and PY_VER[1] >= 8
 if IS_38:
     # we should use the built in ast if python 3.8 or higher
     # see https://github.com/python/typed_ast#python-38
-    import ast as ast3
+    import ast as ast3  # type: ignore # noqa
 else:
     # use the forked typed version
     from typed_ast import ast3  # type: ignore # noqa

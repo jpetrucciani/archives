@@ -86,7 +86,7 @@ class Doc:
 
     def __init__(self, doc_string: ast3.Expr, doc_type: Type) -> None:
         """
-        @cc 11
+        @cc 8
         @desc easier to use version of the ast docstring def
         @arg doc_string: the expression used to represent a docstring
         @arg doc_type: the enum type of doc string this is used for
@@ -109,13 +109,13 @@ class Doc:
             for x, y in Tags.ARG.regex.findall(self.value)
             if x not in DEFAULT_ARG_IGNORE
         }
-        self.links = {x: y for x, y in Tags.LINK.regex.findall(self.value)}
+        self.links = Tags.LINK.regex.findall(self.value)
         self.ret = ret[1] if ret else ""
         self.author = author[1] if author else ""
         self.cc = int(cc[1] if cc else -1)  # pylint: disable=invalid-name
 
-        self.notes = [x for x in Tags.NOTE.regex.findall(self.value)]
-        self.warnings = [x for x in Tags.WARN.regex.findall(self.value)]
+        self.notes = Tags.NOTE.regex.findall(self.value)
+        self.warnings = Tags.WARN.regex.findall(self.value)
 
     def __repr__(self) -> str:
         """
