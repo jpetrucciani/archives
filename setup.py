@@ -11,10 +11,10 @@ __version__ = "VERSION"
 __user__ = "https://github.com/jpetrucciani"
 
 
-with open("README.md") as readme:
+with open("README.md", encoding="UTF-8") as readme:
     LONG_DESCRIPTION = readme.read()
 
-with open("requirements.txt") as requirements:
+with open("requirements.txt", encoding="UTF-8") as requirements:
     INSTALL_REQUIRES = requirements.read().split("\n")
     INSTALL_REQUIRES = [x.strip() for x in INSTALL_REQUIRES if x.strip()]
 
