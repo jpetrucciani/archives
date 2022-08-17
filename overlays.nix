@@ -19,6 +19,10 @@ let
           sha256 = "1p2s0wx1l75dsljiyvars7xlljzs1mipm8jaby5y4jvjck6qmmv2";
         };
 
+        pythonImportsCheck = [
+          "lizard"
+        ];
+
         doCheck = false;
 
         meta = with lib; {
@@ -39,6 +43,10 @@ let
 
         propagatedBuildInputs = [ mando colorama future ];
 
+        pythonImportsCheck = [
+          "radon"
+        ];
+
         doCheck = false;
 
         meta = with lib; {
@@ -57,6 +65,10 @@ let
         };
 
         propagatedBuildInputs = [ six ];
+
+        pythonImportsCheck = [
+          "mando"
+        ];
 
         doCheck = false;
 
