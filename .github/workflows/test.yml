@@ -10,14 +10,14 @@ on:
   workflow_dispatch:
 
 jobs:
-  archives:
-    runs-on: ubuntu-latest
-    continue-on-error: true
-    steps:
-      - uses: actions/checkout@v2
-      - uses: jpetrucciani/archives-check@master
-        with:
-          path: 'archives/'
+  # archives:
+  #   runs-on: ubuntu-latest
+  #   continue-on-error: true
+  #   steps:
+  #     - uses: actions/checkout@v2
+  #     - uses: jpetrucciani/archives-check@master
+  #       with:
+  #         path: 'archives/'
   prospector:
     runs-on: ubuntu-latest
     steps:
