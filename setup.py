@@ -8,11 +8,13 @@ from setuptools import setup, find_packages
 __library__ = "archives"
 __version__ = "VERSION"
 
+__user__ = "https://github.com/jpetrucciani"
 
-with open("README.md") as readme:
+
+with open("README.md", encoding="UTF-8") as readme:
     LONG_DESCRIPTION = readme.read()
 
-with open("requirements.txt") as requirements:
+with open("requirements.txt", encoding="UTF-8") as requirements:
     INSTALL_REQUIRES = requirements.read().split("\n")
     INSTALL_REQUIRES = [x.strip() for x in INSTALL_REQUIRES if x.strip()]
 
@@ -24,9 +26,9 @@ setup(
     long_description=LONG_DESCRIPTION,
     long_description_content_type="text/markdown",
     author="Jacobi Petrucciani",
-    author_email="jacobi@mimirhq.com",
-    url="https://github.com/jpetrucciani/{}.git".format(__library__),
-    download_url="https://github.com/jpetrucciani/{}.git".format(__library__),
+    author_email="j@cobi.dev",
+    url=f"{__user__}/{__library__}.git",
+    download_url=f"{__user__}/{__library__}.git",
     license="MIT",
     packages=find_packages(),
     install_requires=INSTALL_REQUIRES,
@@ -36,6 +38,7 @@ setup(
         "Programming Language :: Python :: 3.7",
         "Programming Language :: Python :: 3.8",
         "Programming Language :: Python :: 3.9",
+        "Programming Language :: Python :: 3.10",
         "Programming Language :: Python :: Implementation :: CPython",
         "Programming Language :: Python :: Implementation :: PyPy",
     ],

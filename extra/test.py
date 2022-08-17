@@ -7,3 +7,4 @@ def function_with_weird_types(
     """
     @arg meme: test
     """
+    return 1

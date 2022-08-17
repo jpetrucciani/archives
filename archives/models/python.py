@@ -32,9 +32,8 @@ def parse_elt(elt: Union[ast3.Name, ast3.Subscript]) -> str:
         if isinstance(value, ast3.NameConstant):
             return f"{name}[{value.value}]"
         if isinstance(value, ast3.Tuple):
-            return "{}[{}]".format(
-                name, ", ".join(parse_elt(x) for x in value.elts)  # type: ignore
-            )
+            vals = ", ".join(parse_elt(x) for x in value.elts)  # type: ignore
+            return f"{name}[{vals}]"
         debug(value)
     return ""
 
