@@ -111,3 +111,5 @@ test_credentials.json
 
 .vscode/
 .direnv/
+result*
+.cache
